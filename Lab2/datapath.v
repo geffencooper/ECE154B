@@ -124,7 +124,7 @@ module datapath (input CLK, RESET);
 //-----------------MEMORY----------------//
 	
 	// data memory
-	data_memory dmem( .Address(ExecuteOutM), .Read_data(ReadDataM), .Write_enable(MemWriteM), .Write_data(WriteDataM), .Clk(CLK), .Rst(RESET));
+	data_memory dmem( .Address(ExecuteOutM), .Read_data(ReadDataM), .Write_enable(MemWriteM), .Write_data(WriteDataM), .MemtoRegM(MemtoRegM), .Clk(CLK), .Rst(RESET));
 
 	// memory writeback pipeline register
 	MWReg mwreg(    .RegWriteM(RegWriteM), .RegWriteW(RegWriteW), .MemtoRegM(MemtoRegM), .MemtoRegW(MemtoRegW),

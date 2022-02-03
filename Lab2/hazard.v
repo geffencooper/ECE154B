@@ -8,8 +8,11 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	reg lwstall, branchstall, multstall;
 	reg branch;
 
+	// we need to keep track of memory delays
 	reg [4:0] dmem_stall_count;
 	reg [4:0] imem_stall_count;
+
+	// these stay high while we have a memory access delay
 	reg DMEM_STALLED;
 	reg IMEM_STALLED;
 
@@ -33,6 +36,17 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		DMEM_STALLED <= 0;
 		IMEM_STALLED <= 0;
 	end
+	
+	// we only stall on the posedge because these signals stay high until we unstall which takes a cycle
+	always @(posedge MemWriteM, posedge MemtoRegM)
+	begin
+		// if data memory not stalling and we want to do a SW/LW, then stall
+		if(~DMEM_STALLED)
+		begin
+			DMEM_STALLED <= 1; // should cause always block below to reevaluate
+			dmem_stall_count <= dmem_stall_count + 1; // increment now because not 'observed' till next posedge
+		end
+	end
 
 	// we wanted our hazards to resolve immediately but decided to make them registers instead of
 	// wires because we were getting 'unknown' spike values on clock edges because the input signals
@@ -40,12 +54,6 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	// any of the inputs change
 	always @(*)
 	begin
-		// if data memory not stalling and we want to do a SW, then stall
-		if(~DMEM_STALLED && MemWriteM)
-		begin
-			DMEM_STALLED <= 1; // should cause always block to reevaluate
-		end
-
 		// branch on bne or beq instructions
 		branch <= (op == 6'b000100 || op == 6'b000101) ? 1 : 0;
 	
@@ -80,14 +88,16 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		multstall <= ((funct == 6'b010000 || funct == 6'b010010)) && ~Valid && op == 6'b000000;
 	end
 
+	// we need to count the delay and unstall once its over
 	always @(posedge clk)
 	begin
 		// if stalled, increment the cycle count
-		if(DMEM_STALLED && dmem_stall_count < 20)
+		if(DMEM_STALLED && dmem_stall_count < 8'h14)
 		begin
 			dmem_stall_count <= dmem_stall_count + 1;
 		end
-		else if(DMEM_STALLED && dmem_stall_count == 20)
+		// unstall and reset counter after 20 cycles
+		else if(DMEM_STALLED && dmem_stall_count == 8'h14)
 		begin
 			dmem_stall_count <= 0;
 			DMEM_STALLED <= 0;
