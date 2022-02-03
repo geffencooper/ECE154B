@@ -43,9 +43,8 @@ begin
     end
 end
 
-// delay 20 clock cycles if want to read/write to memory
-// need to change state as soon as MemtoRegM or Write_enable change
-always @(posedge Clk,MemtoRegM,Write_enable)
+// need to change state as soon as MemtoRegM or Write_enable change (posedge)
+always @(posedge MemtoRegM, posedge Write_enable)
 begin
 	// if there is not currently a memory read in progress, and we want to read, start the delay
 	if(~MEM_READ && MemtoRegM)
@@ -62,8 +61,13 @@ begin
 		write_data <= Write_data;
 		delay_count <= delay_count + 1;
 	end
+end
+
+// delay 20 clock cycles if want to read/write to memory
+always @(posedge Clk)
+begin
 	// if a read or write is in progress and the delay has not been 20 cycles, keep waiting
-	else if((MEM_WRITE || MEM_READ) && (delay_count < 8'h14))
+	if((MEM_WRITE || MEM_READ) && (delay_count < 8'h14))
 	begin
 		delay_count <= delay_count + 1;
 	end
