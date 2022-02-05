@@ -2,21 +2,26 @@
 
 module data_memory_tb();
     // ---- signal declaration ----
-    reg [31:0] address, write_data;
-    wire [31:0] read_data;
-    reg write_enable, clk, rst;
+    reg [31:0] address;
+    reg [63:0] write_data;
+    wire [63:0] read_data;
+    wire ReadReady,WriteReady;
+    reg ReadMiss,MemWriteThrough, clk, rst;
 
-    // 2D array of signals and expected values for testing (15 cases)
-    reg [31:0] test_cases [0:14][0:4];
-    reg [31:0] expected_value;
+    // 2D array of signals and expected values for testing (3 cases) --> test block size of 2
+    reg [63:0] test_cases [0:2][0:5];
+    reg [63:0] expected_value;
 
 
     // ---- instantiate the module under test ----
-    data_memory #(32'h200) mem( // reduce address space: 0-0x800 (0x200 = 512 words, byte addressable)
+    data_memory #(32'h040,32'h2) mem( // reduce address space: 0-0xFC (0x40 = 64 words, byte addressable), block size = 2
         .Address(address), 
         .Read_data(read_data),
-        .Write_enable(write_enable),
+	.ReadReady(ReadReady),
+	.WriteReady(WriteReady),
+	.MemWriteThrough(MemWriteThrough),
         .Write_data(write_data),
+	.ReadMiss(ReadMiss),
         .Clk(clk),
 	.Rst(rst)
     );
@@ -45,19 +50,25 @@ module data_memory_tb();
     integer i;
     initial 
     begin
-        for(i = 0; i < 15; i = i + 1)
+	rst = 1; #2; rst = 0;
+        for(i = 1; i < 3; i = i + 1)
 	begin
-		//#2;
 		// get the test case values
-		address = test_cases[i][0];
-		write_enable = test_cases[i][1][0]; // bit 0
+		address = test_cases[i][0][31:0];
+		MemWriteThrough = test_cases[i][1][0]; // bit 0
 		write_data = test_cases[i][2];
-		rst = test_cases[i][3][0]; // bit 0
-		expected_value = test_cases[i][4];
+		ReadMiss = test_cases[i][3][0]; // bit 0
+		//rst = test_cases[i][4][0]; // bit 0
+		expected_value = test_cases[i][5];
+		$display("Vals %h\t%h\t%h\t%h\t%h\t%h", address, MemWriteThrough, write_data, ReadMiss,rst,expected_value);
 		#2;
-
+		while(~ReadReady && ~WriteReady)
+		begin
+			#1;
+		end
+		$display("rr: %h, wr: %h",ReadReady,WriteReady);
 		// check expected vs actual output
-		if((expected_value != read_data) || (read_data === 32'hxxxxxxxx))
+		if((expected_value != read_data) || (read_data === 64'hxxxxxxxx))
 		begin
 			$display("----Failed Case %d. Expected: 0X%h | Actual: 0X%h", i, expected_value, read_data);
 		end
