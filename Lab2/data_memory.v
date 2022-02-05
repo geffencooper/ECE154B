@@ -16,13 +16,15 @@ module data_memory
 // define the memory array, 32 bits wide awith 'ROWS' amount of words
 reg [31:0] memory[ROWS-1:0];
 
-// internal state registers that determines if the 20 cycles have passed
-reg MEM_READ_READY; // low until 20 cycles passed on read
-reg MEM_WRITE_READY; // low until 20 cycles passed on write
-reg MEM_READ; // high while doing a read
-reg MEM_WRITE; // high while doing a write
+// INTERNAL state registers that signify 20 cycles have passed and we can read/write to data memory
+// Note: the actual read/write only happens on the negedge clock
+reg READ_DELAY_COMPLETE; // low until 20 cycles passed on read
+reg WRITE_DELAY_COMPLETE; // low until 20 cycles passed on write
+reg READING; // high while doing a read
+reg WRITING; // high while doing a write
 reg [4:0] delay_count; // counter register for 20 cycles
 
+// registers that signify that a read or write has completed
 reg read_ready;
 reg write_ready;
 
@@ -33,7 +35,7 @@ assign WriteReady = write_ready;
 
 // save read/write address, and write data because could change next cycle
 reg [31:0] address;
-reg [63:0] write_data;
+reg [32*BLOCK_SIZE-1:0] write_data;
 
 
 // reading and writing to memory only happens on negative clock edge and should only
@@ -43,7 +45,7 @@ integer start;
 always @(negedge Clk)
 begin
     // check reset not enabled and 20 cycles have passed
-    if(~Rst && MEM_WRITE_READY)
+    if(~Rst && WRITE_DELAY_COMPLETE)
     begin
 	// write the whole block
 	for(i = 0; i < BLOCK_SIZE; i = i + 1)
@@ -55,11 +57,11 @@ $display("add: %h, mem[add]: %h, write_data: %h",address,memory[address[31:2]],w
 		memory[address[31:2]] = write_data[start-:32];
 $display("add: %h, mem[add]: %h, write_data: %h",address,memory[address[31:2]],write_data[start-:32]);
 	end
-	MEM_WRITE_READY = 0;
+	WRITE_DELAY_COMPLETE = 0;
 	write_ready = 1;
     end
     // check reset not enabled and 20 cycles have passed
-    else if(~Rst && MEM_READ_READY)
+    else if(~Rst && READ_DELAY_COMPLETE)
     begin
 	// read the whole block
 	for(i = 0; i < BLOCK_SIZE; i = i + 1)
@@ -69,7 +71,7 @@ $display("add: %h, mem[add]: %h, write_data: %h",address,memory[address[31:2]],w
 		start = (i << 5) + 31;
 		Read_data[start-:32] = memory[address[31:2]];
 	end
-	MEM_READ_READY = 0;
+	READ_DELAY_COMPLETE = 0;
 	read_ready = 1;
     end
 end
@@ -79,18 +81,18 @@ end
 always @(posedge ReadMiss, posedge MemWriteThrough)
 begin
 	// if there is not currently a memory read in progress, and we want to read, start the delay
-	if(~MEM_READ && ~MEM_WRITE && ReadMiss)
+	if(~READING && ~WRITING && ReadMiss)
 	begin
-		MEM_READ <= 1;
+		READING <= 1;
 		read_ready <= 0;
 		write_ready <= 0;
 		address <= Address;
 		delay_count <= delay_count + 1; // increment now because not 'observed' till next posedge
 	end
 	// if there is not currently a memory wite in progress, and we want to write, start the delay
-	else if(~MEM_WRITE && ~MEM_READ && MemWriteThrough)
+	else if(~WRITING && ~READING && MemWriteThrough)
 	begin
-		MEM_WRITE <= 1;
+		WRITING <= 1;
 		write_ready <= 0;
 		read_ready <= 0;
 		address <= Address;
@@ -103,22 +105,22 @@ end
 always @(posedge Clk)
 begin
 	// if a read or write is in progress and the delay has not been 20 cycles, keep waiting
-	if((MEM_WRITE || MEM_READ) && (delay_count < 8'h14))
+	if((WRITING || READING) && (delay_count < 8'h14))
 	begin
 		delay_count <= delay_count + 1;
 	end
 	// if there is a read or write in progress and the delay has reached 20 cycles, signify the ready signal
-	else if((MEM_WRITE || MEM_READ) && (delay_count == 8'h14))
+	else if((WRITING || READING) && (delay_count == 8'h14))
 	begin
-		if(MEM_WRITE)
+		if(WRITING)
 		begin
-			MEM_WRITE <= 0;
-			MEM_WRITE_READY <= 1;
+			WRITING <= 0;
+			WRITE_DELAY_COMPLETE <= 1;
 		end
-		else if(MEM_READ)
+		else if(READING)
 		begin
-			MEM_READ <= 0;
-			MEM_READ_READY <= 1;
+			READING <= 0;
+			READ_DELAY_COMPLETE <= 1;
 		end
 		delay_count <= 0;
 	end
@@ -126,10 +128,10 @@ end
 
 always @(posedge Rst)
 begin
-	MEM_READ_READY <= 0;
-	MEM_WRITE_READY <= 0;
-	MEM_READ <= 0;
-	MEM_WRITE <= 0;
+	READ_DELAY_COMPLETE <= 0;
+	WRITE_DELAY_COMPLETE <= 0;
+	READING <= 0;
+	WRITING <= 0;
 	delay_count <= 5'b0;
 	address <= 32'b0;
 	write_data <= 32'b0;
