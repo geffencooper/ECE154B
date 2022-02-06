@@ -48,7 +48,7 @@ module datapath (input CLK, RESET);
 
         // pc register and instruction memory
 	register #(32) PCreg( .D(PCprime), .Q(PCF), .En(StallF), .Clk(CLK), .Clr(RESET));
-	inst_memory #(38) imem( .Address(PCF), .Read_data(InstrF));
+	inst_memory #(38) imem( .Address(PCF), .Read_data(InstrF), .ReadReady(), .ReadMiss(), .Clk(CLK),.Rst(RESET));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
         // flush fetch stage when have a jump instruction or a branch instruction

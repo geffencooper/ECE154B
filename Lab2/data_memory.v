@@ -7,7 +7,7 @@ module data_memory
     output ReadReady, // signifies that a read has completed (Read_data is valid)
     output WriteReady, // signifies that a write has completed
     input MemWriteThrough, // write enable (signifies a SW instr, we want to write) --> comes from cache
-    input [32*BLOCK_SIZE-1:0] Write_data, // data to write to address (write the whole block)
+    input [31:0] Write_data, // data to write to address (write one word)
     input ReadMiss, // signifies a LW instr, we want to read --> comes from cache
     input Clk, // Clock
     input Rst // reset
@@ -35,7 +35,10 @@ assign WriteReady = (state == WRITE_READY);
 
 // save read/write address, and write data because could change next cycle
 reg [31:0] address;
-reg [32*BLOCK_SIZE-1:0] write_data;
+reg [31:0] write_data;
+
+// state register for read and write on a sw miss
+reg sw_miss;
 
 // reset internal registers
 always @(posedge Rst)
@@ -45,6 +48,7 @@ begin
 	address <= 32'b0;
 	write_data <= 32'b0;
 	Read_data <= 32'b0;
+	sw_miss <= 0;
 end
 
 // The data memory is now a state machine:
@@ -58,12 +62,22 @@ always @(posedge Clk)
 begin
 	case(state)
 	IDLE: 	begin
-			if(ReadMiss)
+			// sw miss (need to read block from cache and write word to memory simultaneously)
+			if(ReadMiss && MemWriteThrough)
+			begin
+				sw_miss <= 1;
+				address <= Address;
+				state <= READING;
+				delay_count <= delay_count + 1;
+			end
+			// lw miss
+			else if(ReadMiss)
 			begin
 				state <= READING;
 				address <= Address;
 				delay_count <= delay_count + 1; // increment now because won't be observed till start of nex cycle
 			end
+			// sw write through (sw hit)
 			else if(MemWriteThrough)
 			begin
 				state <= WRITING;
@@ -91,6 +105,13 @@ begin
 			end
 			else if(delay_count == 8'h13) // 20 cycles passed
 			begin
+				// if it was a sw miss then we also need to update a word in the block after sending it to the cache
+				if(sw_miss)
+				begin
+					// write one word
+					memory[address[31:2]] <= write_data;
+					sw_miss <= 0;
+				end
 				state <= READ_READY;
 				delay_count <= 0;
 			end
@@ -102,17 +123,9 @@ begin
 			end
 			else if(delay_count == 8'h12) // when count reads 18, 19 cycles have passed, write now so ready by 20th
 			begin
-				// write the whole block
-				for(i = 0; i < BLOCK_SIZE; i = i + 1)
-				begin   // memory[(address + i*4)[31:2]] --> this gets the next word address (e.g. 0x00, 0x04, 0x08, 0x0C)
-					// write_data[(i*32) + 31 : i*32] --> this write each word in the block indivually (e.g. write_data[31:0], write_data[63:32])
-					address = address + (i << 2); // needs to be blocking
-					start = (i << 5) + 31;
-					$display("add: %h, mem[add]: %h, write_data: %h",address,memory[address[31:2]],write_data[start-:32]);
-					memory[address[31:2]] = write_data[start-:32];
-					$display("add: %h, mem[add]: %h, write_data: %h",address,memory[address[31:2]],write_data[start-:32]);
-				end
-				delay_count = delay_count + 1;
+				// write one word
+				memory[address[31:2]] <= write_data;
+				delay_count <= delay_count + 1;
 			end
 			else if(delay_count == 8'h13) // 20 cycles past
 			begin
