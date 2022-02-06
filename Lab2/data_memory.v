@@ -1,6 +1,6 @@
 module data_memory
 #(parameter ROWS = 32'h00000040, // reduce address space to 0-0x100 (64 words)
-  parameter BLOCK_SIZE = 32'h1)  // block size in words, 4 words --> 16 bytes
+  parameter BLOCK_SIZE = 32'h4)  // block size in words, 4 words --> 16 bytes
 (
     input [31:0] Address, // address to read/write on a miss (start of the block)
     output reg [32*BLOCK_SIZE-1:0] Read_data, // data read from address (read the whole block)
