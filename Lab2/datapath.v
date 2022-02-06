@@ -33,8 +33,10 @@ module datapath (input CLK, RESET);
 	// memory and writeback wires
 	wire MemtoRegM, MemWriteM, RegWriteM;
 	wire [31:0] ReadDataM, ExecuteOutW;
+	wire ReadReady, WriteReady;
 
 	wire MemtoRegW, RegWriteW;
+	wire FlushW;
 	wire [31:0] ReadDataW;
 
 
@@ -124,12 +126,13 @@ module datapath (input CLK, RESET);
 //-----------------MEMORY----------------//
 	
 	// data memory
-	data_memory dmem( .Address(ExecuteOutM), .Read_data(ReadDataM), .Write_enable(MemWriteM), .Write_data(WriteDataM), .MemtoRegM(MemtoRegM), .Clk(CLK), .Rst(RESET));
+	data_memory dmem( .Address(ExecuteOutM), .Read_data(ReadDataM), .MemWriteThrough(MemWriteM), .Write_data(WriteDataM), .ReadMiss(MemtoRegM), .ReadReady(ReadReady),
+			  .WriteReady(WriteReady), .Clk(CLK), .Rst(RESET));
 
 	// memory writeback pipeline register
 	MWReg mwreg(    .RegWriteM(RegWriteM), .RegWriteW(RegWriteW), .MemtoRegM(MemtoRegM), .MemtoRegW(MemtoRegW),
 			.ReadDataM(ReadDataM), .ReadDataW(ReadDataW), .ExecuteOutM(ExecuteOutM), .ExecuteOutW(ExecuteOutW), 
-			.WriteRegM(WriteRegM), .WriteRegW(WriteRegW), .jumpM(jumpM), .jumpW(jumpW), .PCPlus4M(PCPlus4M), .PCPlus4W(PCPlus4W), .Clk(CLK), .Clr(RESET));	
+			.WriteRegM(WriteRegM), .WriteRegW(WriteRegW), .jumpM(jumpM), .jumpW(jumpW), .PCPlus4M(PCPlus4M), .PCPlus4W(PCPlus4W), .Clk(CLK), .Clr(RESET || FlushW));	
 	
 //-----------------WRITEBACK----------------//
 
@@ -143,8 +146,8 @@ module datapath (input CLK, RESET);
 	hazard hazard_unit(	.RsE(RsE), .RtE(RtE), .RsD(InstrD[25:21]), .RtD(InstrD[20:16]), .WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .WriteRegW(WriteRegW), 
 				.RegWriteW(RegWriteW), .RegWriteM(RegWriteM), .MemtoRegM(MemtoRegM), .RegWriteE(RegWriteE), .MemtoRegE(MemtoRegE), .MemWriteM(MemWriteM),
 				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK),
-				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
-				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid));
+				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .FlushW(FlushW), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
+				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .WriteReady(WriteReady));
 	
 
 endmodule

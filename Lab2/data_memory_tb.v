@@ -50,23 +50,30 @@ module data_memory_tb();
     integer i;
     initial 
     begin
-	rst = 1; #2; rst = 0;
+	rst = 1; #3; rst = 0;
         for(i = 1; i < 3; i = i + 1)
 	begin
-		// get the test case values
+		// get the next test case values
 		address = test_cases[i][0][31:0];
 		MemWriteThrough = test_cases[i][1][0]; // bit 0
 		write_data = test_cases[i][2];
 		ReadMiss = test_cases[i][3][0]; // bit 0
-		//rst = test_cases[i][4][0]; // bit 0
 		expected_value = test_cases[i][5];
-		$display("Vals %h\t%h\t%h\t%h\t%h\t%h", address, MemWriteThrough, write_data, ReadMiss,rst,expected_value);
-		#2;
-		while(~ReadReady && ~WriteReady)
+		//$display("Vals %h\t%h\t%h\t%h\t%h\t%h", address, MemWriteThrough, write_data, ReadMiss,rst,expected_value);
+		
+		// wait for the read/write request to complete
+		while((~ReadReady && ReadMiss) || (~WriteReady && MemWriteThrough))
 		begin
-			#1;
+			#1; // in the pipeline we will detect this asynchronously
 		end
-		$display("rr: %h, wr: %h",ReadReady,WriteReady);
+
+		// once we finish the read/write, deassert the request
+		MemWriteThrough = 0;
+		ReadMiss = 0;
+		
+		// continue on the next posedge
+		#2;
+		//$display("rr: %h, wr: %h",ReadReady,WriteReady);
 		// check expected vs actual output
 		if((expected_value != read_data) || (read_data === 64'hxxxxxxxx))
 		begin

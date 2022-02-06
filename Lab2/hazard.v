@@ -1,16 +1,12 @@
 module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW, 
-		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM,
+		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, WriteReady,
 		input [5:0] op, funct,
 		input rst,clk, Valid,
-		output reg StallF, StallD, StallE, StallM, FlushE, ForwardAD, ForwardBD, 
+		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD, ForwardBD, 
 		output reg [1:0] ForwardAE, ForwardBE);
 
 	reg lwstall, branchstall, multstall;
 	reg branch;
-
-	// we need to keep track of memory delays
-	reg [4:0] dmem_stall_count;
-	reg [4:0] imem_stall_count;
 
 	// these stay high while we have a memory access delay
 	reg DMEM_STALLED;
@@ -23,6 +19,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		StallD <= 0;
 		StallE <= 0;
 		FlushE <= 0;
+		FlushW <= 0;
 		ForwardAD <= 0;
 		ForwardBD <= 0;
 		ForwardAE <= 0;
@@ -31,20 +28,17 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		branchstall <= 0;
 		multstall <= 0;
 		branch <= 0;
-		dmem_stall_count <= 5'b00000;
-		imem_stall_count <= 5'b00000;
 		DMEM_STALLED <= 0;
 		IMEM_STALLED <= 0;
 	end
 	
-	// we only stall on the posedge because these signals stay high until we unstall which takes a cycle
-	always @(posedge MemWriteM, posedge MemtoRegM)
+	// we only stall on the posedge because these signals stay high until the request is ready
+	always @(posedge MemWriteM, posedge MemtoRegM) 
 	begin
 		// if data memory not stalling and we want to do a SW/LW, then stall
-		if(~DMEM_STALLED)
+		if(~DMEM_STALLED) // once we integrate the cache, we will check if there is a cache miss before stalling
 		begin
 			DMEM_STALLED <= 1; // should cause always block below to reevaluate
-			dmem_stall_count <= dmem_stall_count + 1; // increment now because not 'observed' till next posedge
 		end
 	end
 
@@ -65,6 +59,11 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 
 		// flush the execute stage on a decode stage stall so 'stale' register values don't propagate
 		FlushE <= lwstall || branchstall;
+
+		// flush the write stage on a data memory stal to avoid piping through incorrect control signals and data memory output
+		// the Clr is synchronous so it only takes effect on the next posedge clock which is what we want because the 'current' val
+		// in the Writeback reg is valid
+		FlushW <= DMEM_STALLED;
 	
 		//Execute Stage Forwarding
 		// when the source register in the execute stage matches the destination registers in the memory or writeback
@@ -89,18 +88,8 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	end
 
 	// we need to count the delay and unstall once its over
-	always @(posedge clk)
+	always @(posedge ReadReady, posedge WriteReady)
 	begin
-		// if stalled, increment the cycle count
-		if(DMEM_STALLED && dmem_stall_count < 8'h14)
-		begin
-			dmem_stall_count <= dmem_stall_count + 1;
-		end
-		// unstall and reset counter after 20 cycles
-		else if(DMEM_STALLED && dmem_stall_count == 8'h14)
-		begin
-			dmem_stall_count <= 0;
-			DMEM_STALLED <= 0;
-		end
+		DMEM_STALLED <= 0;
 	end
 endmodule
