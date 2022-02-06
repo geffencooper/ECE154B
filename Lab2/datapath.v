@@ -33,13 +33,13 @@ module datapath (input CLK, RESET);
 	// memory and writeback wires
 	wire MemtoRegM, MemWriteM, RegWriteM;
 	wire [31:0] ReadDataM, ExecuteOutW;
-	wire ReadReady, WriteReady;
 
 	wire MemtoRegW, RegWriteW;
 	wire FlushW;
 	wire [31:0] ReadDataW;
 
-
+	wire [31:0] datareadmiss, addymem, datawrite;
+	wire ReadReady, WriteReady, readmiss, memwritethru;
 
 //-----------------FETCH----------------//
 	// PC Selection
@@ -126,7 +126,11 @@ module datapath (input CLK, RESET);
 //-----------------MEMORY----------------//
 	
 	// data memory
-	data_memory dmem( .Address(ExecuteOutM), .Read_data(ReadDataM), .MemWriteThrough(MemWriteM), .Write_data(WriteDataM), .ReadMiss(MemtoRegM), .ReadReady(ReadReady),
+
+	cache cash(.addy(ExecuteOutM), .write_data(WriteDataM), .datareadmiss(datareadmiss), .memwrite(MemWriteM), .memtoreg(MemtoRegM), .readready(ReadReady), .Rst(RESET), .Clk(CLK),
+			.data(ReadDataM), .datawrite(datawrite), .addymem(addymem), .memwritethru(memwritethru), .readmiss(readmiss)); 	
+
+	data_memory dmem( .Address(addymem), .Read_data(datareadmiss), .MemWriteThrough(memwritethru), .Write_data(datawrite), .ReadMiss(readmiss), .ReadReady(ReadReady),
 			  .WriteReady(WriteReady), .Clk(CLK), .Rst(RESET));
 
 	// memory writeback pipeline register

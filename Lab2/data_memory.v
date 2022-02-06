@@ -94,6 +94,7 @@ begin
 			else if(delay_count == 8'h12) // when count reads 18, 19 cycles have passed, read now so ready by 20th
 			begin
 				// read the whole block
+				address = address & 32'b0000; //change block offset to 0 so can grab correct block
 				for(i = 0; i < BLOCK_SIZE; i = i + 1)
 				begin   // Read_data[(i*32) + 31 : i*32]  --> this gets each word in the block indivually (e.g. read_data[31:0], read_data[63:32])
 					// memory[(address + i*4)[31:2]]--> this gets the next word address (e.g. 0x00, 0x04, 0x08, 0x0C)

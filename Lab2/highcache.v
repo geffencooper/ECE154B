@@ -3,8 +3,8 @@ module cache
 (input [31:0] addy, write_data, 
  input [127:0] datareadmiss, 
  input memwrite, memtoreg, readready, Rst, Clk, 
- output [31:0] data, datawrite, addymem, 
- output memwritethru, readmiss)
+ output reg [31:0] data, datawrite, addymem, 
+ output reg memwritethru, readmiss);
 
 reg [2:0] state;
 reg [2:0] prevstate;
@@ -29,34 +29,35 @@ reg [2:0] prevstate;
 	assign blk_offset = address[3:2]; //block size 4
 
 
-	reg [146:0] way_1[0:ROWS-1];  //0
-	reg [146:0] way_2[0:ROWS-1];  //1
+	reg [146:0] way1[0:ROWS-1];  //0
+	reg [146:0] way2[0:ROWS-1];  //1
 	reg lru[0:ROWS-1];
 	
 	wire v1, v2, eq1, eq2, hit1, hit2;
-	wire [127:0] data1, data2, databus1, databus2;
+	wire [127:0] data1, data2, databus, databus1, databus2;
 	wire [17:0] tag1, tag2;
 	wire [31:0] outmux;
+	reg forcehit1, forcehit2;
 
-	assign v1 = way1[146];
-	assign tag1 = way1[145:128];
-	assign data1 = way1[127:0];
+	assign v1 = way1[set][146];
+	assign tag1 = way1[set][145:128];
+	assign data1 = way1[set][127:0];
 
 	assign eq1 = (tag1==tag);
 	assign hit1 = v1&&eq1;
 
 	buffer buf1(.enable(hit1), .datasrc(data1), .databus(databus1));
 	
-	assign v2 = way2[146];
-	assign tag2 = way2[145:128];
-	assign data2 = way2[127:0];
+	assign v2 = way2[set][146];
+	assign tag2 = way2[set][145:128];
+	assign data2 = way2[set][127:0];
 
 	assign eq2 = (tag2==tag);
 	assign hit2 = v2&&eq2;
 
 	buffer buf2(.enable(hit2), .datasrc(data2), .databus(databus2));
 	
-	databus = databus1 || databus2;
+	assign databus = databus1 | databus2;
 	mux4 blk_select(.d0(databus[31:0]), .d1(databus[63:32]), .d2(databus[95:64]), .d3(databus[127:96]), .s(blk_offset), .y(outmux));
 
 	assign hit = hit1||hit2;
@@ -90,25 +91,31 @@ reg [2:0] prevstate;
 				else if (memtoreg && ~hit)
 				begin
 					prevstate <= INIT;
+					readmiss <= 1;
+					addymem <= address;
 					state <= READ;
 				end
 				else if (memwrite && hit)
 				begin
 					prevstate <= INIT;
+					datawrite <= write_word;  //write through cache, so also write it to memory
+					addymem <= address;
+					memwritethru <= 1;
+					readmiss <=0;
 					state <= WRITECACHE;
 				end
 				else if (memwrite && ~hit)
 				begin
 					prevstate <= INIT;
+					datawrite <= write_word;  //write through cache, so also write it to memory
+					addymem <= address;
+					memwritethru <= 1;
+					readmiss <=1;
 					state <= WRITEMEM;
 				end
 			end
 		end
 		WRITEMEM: begin
-			datawrite <= write_word;  //write through cache, so also write it to memory
-			addymem <= address;
-			memwritethru <= 1;
-			readmiss <=0;
 			if (prevstate == INIT)
 			begin
 				prevstate <= WRITEMEM;
@@ -122,7 +129,7 @@ reg [2:0] prevstate;
 		end	
 		WRITECACHE: begin
 			//write the new data into the block just brough in from mem
-			if(hit1 ==1) //if hit1 was 1, 
+			if(hit1 ==1 || forcehit1 == 1) //if hit1 was 1, 
 			begin
 				case(blk_offset) //make sure the word is put in correct spot in the block
         				2'b00: way1[set][31:0] <= write_word;
@@ -133,8 +140,9 @@ reg [2:0] prevstate;
 				way1[set][145:128] <= tag;
 				way1[set][146] <= 1;
 				lru[set] <= 1; //way2 now lru
+				forcehit1 <= 0;
 			end
-			else if(hit2 ==1)
+			else if(hit2 ==1 || forcehit2 == 1)
 			begin
 				case(blk_offset)//make sure the word is put in correct spot in the block
         				2'b00: way2[set][31:0] <= write_word;
@@ -145,6 +153,7 @@ reg [2:0] prevstate;
 				way2[set][145:128] <= tag;
 				way2[set][146] <= 1;
 				lru[set] <= 0; //way 1 now lru
+				forcehit2 <= 0;
 			end
 			if (prevstate == INIT) 
 			begin
@@ -158,32 +167,32 @@ reg [2:0] prevstate;
 			end
 		end
 		READ: begin
-			readmiss == 1;
-			addymem <= address;
 			if(readready == 1) //how to wait for this
 			begin
 				if(lru[set])
 				begin
-					way2[set] <= datareadmiss;
+					way2[set][127:0] <= datareadmiss;
+					way2[set][145:128] <= tag;
 					if (prevstate == INIT)
 					begin
-						lru[set] == 0;  //only want to change lru on a read miss ( if its a write miss, lru changd after WRITECACHE)
+						lru[set] <= 0;  //only want to change lru on a read miss ( if its a write miss, lru changd after WRITECACHE)
 					end
 					else if (prevstate == WRITEMEM)
 					begin
-						hit2 <= 1;
+						forcehit2 <= 1;
 					end
 				end
 				else
 				begin
-					way1[set] <= datareadmiss;
+					way1[set][127:0] <= datareadmiss;
+					way1[set][145:128] <= tag;
 					if (prevstate == INIT)
 					begin
-						lru[set] == 1;  //only want to change lru on a read miss ( if its a write miss, lru changd after WRITECACHE)
+						lru[set] <= 1;  //only want to change lru on a read miss ( if its a write miss, lru changd after WRITECACHE)
 					end
 					else if (prevstate == WRITEMEM)
 					begin
-						hit1 <= 1;
+						forcehit1 <= 1;
 					end
 				end
 				data <= outmux;
@@ -194,11 +203,12 @@ reg [2:0] prevstate;
 				end
 				else if (prevstate <= WRITEMEM)
 				begin
-					prevstate <= READ
-					state <= WRITECACHE
+					prevstate <= READ;
+					state <= WRITECACHE;
 				end
 			end
 		end
+		endcase
 	end
 
 endmodule
@@ -209,7 +219,7 @@ module mux4 #(parameter WIDTH = 32)
 	assign y = s[1] ? (s[0] ? d3:d2):(s[0] ? d1:d0);
 endmodule 
 
-module buffer (input enable, input [127:0] datasrc, output [127:0] databus)
+module buffer (input enable, input [127:0] datasrc, output [127:0] databus);
 
 	assign databus = enable ? datasrc:32'h0000;
 
