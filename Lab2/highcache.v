@@ -83,6 +83,12 @@ reg [2:0] prevstate;
 		write_word <= write_data;
 	end
 
+	always @(posedge readready)
+	begin
+		readmiss <= 0;
+		memwritethru <= 0;
+	end
+
 	always @(posedge Clk)
 	begin
    		case(state)
