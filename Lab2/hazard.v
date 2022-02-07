@@ -1,7 +1,7 @@
 module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW, 
 		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, WriteReady,
 		input [5:0] op, funct,
-		input rst,clk, Valid,
+		input rst,clk, Valid, cachemiss,
 		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD, ForwardBD, 
 		output reg [1:0] ForwardAE, ForwardBE);
 
@@ -36,7 +36,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	always @(posedge MemWriteM, posedge MemtoRegM) 
 	begin
 		// if data memory not stalling and we want to do a SW/LW, then stall
-		if(~DMEM_STALLED) // once we integrate the cache, we will check if there is a cache miss before stalling
+		if(~DMEM_STALLED&&cachemiss) // once we integrate the cache, we will check if there is a cache miss before stalling
 		begin
 			DMEM_STALLED <= 1; // should cause always block below to reevaluate
 		end

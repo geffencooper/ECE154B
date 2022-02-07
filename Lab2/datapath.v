@@ -38,7 +38,8 @@ module datapath (input CLK, RESET);
 	wire FlushW;
 	wire [31:0] ReadDataW;
 
-	wire [31:0] datareadmiss, addymem, datawrite;
+	wire [31:0] addymem, datawrite;
+	wire [127:0] datareadmiss;
 	wire ReadReady, WriteReady, readmiss, memwritethru;
 
 //-----------------FETCH----------------//
@@ -48,7 +49,7 @@ module datapath (input CLK, RESET);
 
         // pc register and instruction memory
 	register #(32) PCreg( .D(PCprime), .Q(PCF), .En(StallF), .Clk(CLK), .Clr(RESET));
-	inst_memory #(38) imem( .Address(PCF), .Read_data(InstrF));
+	inst_memory #(16) imem( .Address(PCF), .Read_data(InstrF));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
         // flush fetch stage when have a jump instruction or a branch instruction
@@ -149,7 +150,7 @@ module datapath (input CLK, RESET);
 	// hazard unit
 	hazard hazard_unit(	.RsE(RsE), .RtE(RtE), .RsD(InstrD[25:21]), .RtD(InstrD[20:16]), .WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .WriteRegW(WriteRegW), 
 				.RegWriteW(RegWriteW), .RegWriteM(RegWriteM), .MemtoRegM(MemtoRegM), .RegWriteE(RegWriteE), .MemtoRegE(MemtoRegE), .MemWriteM(MemWriteM),
-				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK),
+				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .cachemiss(memwritethru),
 				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .FlushW(FlushW), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
 				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .WriteReady(WriteReady));
 	

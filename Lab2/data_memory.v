@@ -22,6 +22,8 @@ reg [2:0] state;
 // register store delay count
 reg [4:0] delay_count;
 
+reg [31:0] read_address;
+
 // states
 parameter IDLE  = 3'b000, // start here on a rst
 	  READING = 3'b001, // processing a read request (lw), waiting 20 cycles
@@ -40,15 +42,22 @@ reg [31:0] write_data;
 // state register for read and write on a sw miss
 reg sw_miss;
 
+integer idx;
 // reset internal registers
 always @(posedge Rst)
 begin
 	state <= IDLE;
 	delay_count <= 5'b0;
 	address <= 32'b0;
+	read_address <= 32'b0;
 	write_data <= 32'b0;
 	Read_data <= 32'b0;
 	sw_miss <= 0;
+
+	for(idx = 0; idx < ROWS; idx = idx + 1)
+	begin
+		memory[idx] <= 32'h0;
+	end
 end
 
 // The data memory is now a state machine:
@@ -68,6 +77,7 @@ begin
 				sw_miss <= 1;
 				address <= Address;
 				state <= READING;
+				write_data <= Write_data;
 				delay_count <= delay_count + 1;
 			end
 			// lw miss
@@ -94,13 +104,13 @@ begin
 			else if(delay_count == 8'h12) // when count reads 18, 19 cycles have passed, read now so ready by 20th
 			begin
 				// read the whole block
-				address = address & 32'b0000; //change block offset to 0 so can grab correct block
+				read_address = address & 32'b0000; //change block offset to 0 so can grab correct block
 				for(i = 0; i < BLOCK_SIZE; i = i + 1)
 				begin   // Read_data[(i*32) + 31 : i*32]  --> this gets each word in the block indivually (e.g. read_data[31:0], read_data[63:32])
 					// memory[(address + i*4)[31:2]]--> this gets the next word address (e.g. 0x00, 0x04, 0x08, 0x0C)
-					address = address + (i << 2); // needs to be blocking
+					read_address = read_address + (i << 2); // needs to be blocking
 					start = (i << 5) + 31;
-					Read_data[start-:32] = memory[address[31:2]];
+					Read_data[start-:32] = memory[read_address[31:2]];
 				end
 				delay_count = delay_count + 1;
 			end
