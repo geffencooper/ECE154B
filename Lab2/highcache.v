@@ -2,7 +2,7 @@ module cache
 #(parameter ROWS = 32'h00000400) //1024 rows
 (input [31:0] addy, write_data, 
  input [127:0] datareadmiss, 
- input memwrite, memtoreg, readready, Rst, Clk, 
+ input memwrite, memtoreg, readready, Rst, Clk, writeready,
  output reg [31:0] data, datawrite, addymem, 
  output reg memwritethru, readmiss);
 
@@ -68,6 +68,8 @@ reg [2:0] prevstate;
 	 	data <= 32'b0;
 		datawrite <= 32'b0;
 		addymem <= 32'b0;
+		address <= 32'b0;
+		write_word <= 32'b0;
 		for (i=0;i<ROWS;i=i+1)
 		begin
 			way1[i] <= 147'b0;
@@ -80,7 +82,7 @@ reg [2:0] prevstate;
 	always @(posedge memwrite, posedge memtoreg)
 	begin
 		address <= addy;
-		write_word <= write_data;
+		write_word <= write_data; //write_word -> datawrite
 	end
 
 	always @(posedge readready)
@@ -88,8 +90,11 @@ reg [2:0] prevstate;
 		readmiss <= 0;
 		memwritethru <= 0;
 	end
-
-	always @(posedge Clk)
+	always @(posedge writeready)
+	begin
+		memwritethru<=0;
+	end
+	always @(posedge Clk, posedge memwrite, posedge readready) //added posedge write_word
 	begin
    		case(state)
 		INIT: begin
@@ -154,7 +159,7 @@ reg [2:0] prevstate;
 		end	
 		WRITECACHE: begin
 			//write the new data into the block just brough in from mem
-			if(hit1 ==1 || forcehit1 == 1) //if hit1 was 1, 
+			if(hit1 ==1 || forcehit1 ==1) //if hit1 was 1, 
 			begin
 				case(blk_offset) //make sure the word is put in correct spot in the block
         				2'b00: way1[set][31:0] <= write_word;
@@ -167,7 +172,7 @@ reg [2:0] prevstate;
 				lru[set] <= 1; //way2 now lru
 				forcehit1 <= 0;
 			end
-			else if(hit2 ==1 || forcehit2 == 1)
+			else if(hit2 ==1 || forcehit2 ==1)
 			begin
 				case(blk_offset)//make sure the word is put in correct spot in the block
         				2'b00: way2[set][31:0] <= write_word;
@@ -229,6 +234,32 @@ reg [2:0] prevstate;
 				else if (prevstate <= WRITEMEM)
 				begin
 					prevstate <= READ;
+					/*if(forcehit1 == 1) //if hit1 was 1, 
+					begin
+						case(blk_offset) //make sure the word is put in correct spot in the block
+		        				2'b00: way1[set][31:0] <= write_word;
+							2'b01: way1[set][63:32] <= write_word;
+		        				2'b10: way1[set][95:64] <= write_word;
+		        				2'b11: way1[set][127:96] <= write_word;
+						endcase
+						way1[set][145:128] <= tag;
+						way1[set][146] <= 1;
+						lru[set] <= 1; //way2 now lru
+						forcehit1 <= 0;
+					end
+					else if(forcehit2 == 1)
+					begin
+						case(blk_offset)//make sure the word is put in correct spot in the block
+		        				2'b00: way2[set][31:0] <= write_word;
+							2'b01: way2[set][63:32] <= write_word;
+		        				2'b10: way2[set][95:64] <= write_word;
+		        				2'b11: way2[set][127:96] <= write_word;
+						endcase
+						way2[set][145:128] <= tag;
+						way2[set][146] <= 1;
+						lru[set] <= 0; //way 1 now lru
+						forcehit2 <= 0;
+					end*/
 					state <= WRITECACHE;
 				end
 			end

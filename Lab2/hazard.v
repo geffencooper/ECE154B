@@ -1,7 +1,7 @@
 module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW, 
-		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, WriteReady,
+		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, WriteReady, MemWriteE,
 		input [5:0] op, funct,
-		input rst,clk, Valid, cachemiss,
+		input rst,clk, Valid, writemiss,
 		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD, ForwardBD, 
 		output reg [1:0] ForwardAE, ForwardBE);
 
@@ -11,6 +11,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	// these stay high while we have a memory access delay
 	reg DMEM_STALLED;
 	reg IMEM_STALLED;
+	reg store_inprog;
 
 	// reset registers on global reset
 	always @(posedge rst)
@@ -30,18 +31,22 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		branch <= 0;
 		DMEM_STALLED <= 0;
 		IMEM_STALLED <= 0;
+		store_inprog <= 0;
 	end
 	
 	// we only stall on the posedge because these signals stay high until the request is ready
-	always @(posedge MemWriteM, posedge MemtoRegM) 
+	always @(posedge MemWriteE, posedge MemtoRegE) 
 	begin
 		// if data memory not stalling and we want to do a SW/LW, then stall
-		if(~DMEM_STALLED&&cachemiss) // once we integrate the cache, we will check if there is a cache miss before stalling
+		if(store_inprog) // once we integrate the cache, we will check if there is a cache miss before stalling
 		begin
 			DMEM_STALLED <= 1; // should cause always block below to reevaluate
 		end
 	end
-
+	always @(posedge writemiss)
+	begin		
+		store_inprog <=1;
+	end
 	// we wanted our hazards to resolve immediately but decided to make them registers instead of
 	// wires because we were getting 'unknown' spike values on clock edges because the input signals
 	// are in a brief state of uncertainty. To fix this bug we made them registers and had them change when
@@ -85,11 +90,13 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 					(branch && MemtoRegM && ((WriteRegM == RsD) || (WriteRegM == RtD)));
 		//mult stall, multiplication not valid and a mfhi or mflo instruction shows up
 		multstall <= ((funct == 6'b010000 || funct == 6'b010010)) && ~Valid && op == 6'b000000;
+
 	end
 
 	// we need to count the delay and unstall once its over
 	always @(posedge ReadReady, posedge WriteReady)
 	begin
 		DMEM_STALLED <= 0;
+		store_inprog <= 0;
 	end
 endmodule

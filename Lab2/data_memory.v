@@ -104,7 +104,7 @@ begin
 			else if(delay_count == 8'h12) // when count reads 18, 19 cycles have passed, read now so ready by 20th
 			begin
 				// read the whole block
-				read_address = address & 32'b0000; //change block offset to 0 so can grab correct block
+				read_address = address & 32'hfffffff0; //change block offset to 0 so can grab correct block
 				for(i = 0; i < BLOCK_SIZE; i = i + 1)
 				begin   // Read_data[(i*32) + 31 : i*32]  --> this gets each word in the block indivually (e.g. read_data[31:0], read_data[63:32])
 					// memory[(address + i*4)[31:2]]--> this gets the next word address (e.g. 0x00, 0x04, 0x08, 0x0C)
@@ -112,10 +112,6 @@ begin
 					start = (i << 5) + 31;
 					Read_data[start-:32] = memory[read_address[31:2]];
 				end
-				delay_count = delay_count + 1;
-			end
-			else if(delay_count == 8'h13) // 20 cycles passed
-			begin
 				// if it was a sw miss then we also need to update a word in the block after sending it to the cache
 				if(sw_miss)
 				begin
@@ -123,6 +119,10 @@ begin
 					memory[address[31:2]] <= write_data;
 					sw_miss <= 0;
 				end
+				delay_count = delay_count + 1;
+			end
+			else if(delay_count == 8'h13) // 20 cycles passed
+			begin
 				state <= READ_READY;
 				delay_count <= 0;
 			end

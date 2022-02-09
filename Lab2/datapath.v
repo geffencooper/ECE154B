@@ -49,7 +49,7 @@ module datapath (input CLK, RESET);
 
         // pc register and instruction memory
 	register #(32) PCreg( .D(PCprime), .Q(PCF), .En(StallF), .Clk(CLK), .Clr(RESET));
-	inst_memory #(28) imem( .Address(PCF), .Read_data(InstrF));
+	inst_memory #(38) imem( .Address(PCF), .Read_data(InstrF));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
         // flush fetch stage when have a jump instruction or a branch instruction
@@ -128,8 +128,8 @@ module datapath (input CLK, RESET);
 	
 	// data memory
 
-	cache cash(.addy(ExecuteOutM), .write_data(WriteDataM), .datareadmiss(datareadmiss), .memwrite(MemWriteM), .memtoreg(MemtoRegM), .readready(ReadReady), .Rst(RESET), .Clk(CLK),
-			.data(ReadDataM), .datawrite(datawrite), .addymem(addymem), .memwritethru(memwritethru), .readmiss(readmiss)); 	
+	ezcache cash(.addy(ExecuteOutM), .write_data(WriteDataM), .datareadmiss(datareadmiss), .memwrite(MemWriteM), .memtoreg(MemtoRegM), .readready(ReadReady), .Rst(RESET), .Clk(CLK),
+			.writeready(WriteReady), .data(ReadDataM), .datawrite(datawrite), .address(addymem), .memwritethru(memwritethru), .readmiss(readmiss)); 	
 
 	data_memory dmem( .Address(addymem), .Read_data(datareadmiss), .MemWriteThrough(memwritethru), .Write_data(datawrite), .ReadMiss(readmiss), .ReadReady(ReadReady),
 			  .WriteReady(WriteReady), .Clk(CLK), .Rst(RESET));
@@ -150,7 +150,8 @@ module datapath (input CLK, RESET);
 	// hazard unit
 	hazard hazard_unit(	.RsE(RsE), .RtE(RtE), .RsD(InstrD[25:21]), .RtD(InstrD[20:16]), .WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .WriteRegW(WriteRegW), 
 				.RegWriteW(RegWriteW), .RegWriteM(RegWriteM), .MemtoRegM(MemtoRegM), .RegWriteE(RegWriteE), .MemtoRegE(MemtoRegE), .MemWriteM(MemWriteM),
-				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .cachemiss(memwritethru),
+				.MemWriteE(MemWriteE), 
+				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .writemiss(memwritethru),
 				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .FlushW(FlushW), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
 				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .WriteReady(WriteReady));
 	
