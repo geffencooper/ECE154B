@@ -22,6 +22,8 @@ reg [2:0] state;
 // register store delay count
 reg [4:0] delay_count;
 
+// read address is the starting address of the block to read
+// and must be extracted from the word address
 reg [31:0] read_address;
 
 // states
@@ -43,6 +45,7 @@ reg [31:0] write_data;
 reg sw_miss;
 
 integer idx;
+
 // reset internal registers
 always @(posedge Rst)
 begin
@@ -54,6 +57,7 @@ begin
 	Read_data <= 32'b0;
 	sw_miss <= 0;
 
+	// set the memory to all zeros to avoid xxxx...
 	for(idx = 0; idx < ROWS; idx = idx + 1)
 	begin
 		memory[idx] <= 32'h0;
@@ -97,6 +101,7 @@ begin
 			end
 		end
 	READING:begin
+			// stay in this state until the counter reaches 18 (19 cycles past since only observed after clock edge)
 			if(delay_count < 8'h12)
 			begin
 				delay_count <= delay_count + 1;
@@ -105,6 +110,8 @@ begin
 			begin
 				// read the whole block
 				read_address = address & 32'hfffffff0; //change block offset to 0 so can grab correct block
+				
+				// iterate through the block and put on read bus
 				for(i = 0; i < BLOCK_SIZE; i = i + 1)
 				begin   // Read_data[(i*32) + 31 : i*32]  --> this gets each word in the block indivually (e.g. read_data[31:0], read_data[63:32])
 					// memory[(address + i*4)[31:2]]--> this gets the next word address (e.g. 0x00, 0x04, 0x08, 0x0C)
@@ -145,6 +152,7 @@ begin
 			end
 		end
 	READ_READY:	begin
+				// we are ready for one cycle then go back to idle
 				state <= IDLE;
 			end
 	WRITE_READY:	begin

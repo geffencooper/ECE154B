@@ -37,12 +37,13 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	// we only stall on the posedge because these signals stay high until the request is ready
 	always @(posedge MemWriteE, posedge MemtoRegE) 
 	begin
-		// if data memory not stalling and we want to do a SW/LW, then stall
-		if(store_inprog) // once we integrate the cache, we will check if there is a cache miss before stalling
+		// if a sw is already in progress (WRITING stage), then stall until it is done
+		if(store_inprog)
 		begin
 			DMEM_STALLED <= 1; // should cause always block below to reevaluate
 		end
 	end
+	// if we do a sw (always writethrough) then set the register
 	always @(posedge writemiss)
 	begin		
 		store_inprog <=1;
@@ -65,7 +66,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		// flush the execute stage on a decode stage stall so 'stale' register values don't propagate
 		FlushE <= lwstall || branchstall;
 
-		// flush the write stage on a data memory stal to avoid piping through incorrect control signals and data memory output
+		// flush the write stage on a data memory stall to avoid piping through incorrect control signals and data memory output
 		// the Clr is synchronous so it only takes effect on the next posedge clock which is what we want because the 'current' val
 		// in the Writeback reg is valid
 		FlushW <= DMEM_STALLED;
@@ -93,7 +94,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 
 	end
 
-	// we need to count the delay and unstall once its over
+	// once we get a ready signal from the memory we can unstall
 	always @(posedge ReadReady, posedge WriteReady)
 	begin
 		DMEM_STALLED <= 0;
