@@ -57,7 +57,7 @@ module datapath (input CLK, RESET);
 			   .Rst(RESET), .Clk(CLK),
 			   .data(InstrF), .address(iaddy), .readmiss(ireadmiss));
 
-	inst_memory #(38) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
+	inst_memory #(11) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
 				.abort(1'b0), .Clk(CLK), .Rst(RESET));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
@@ -137,7 +137,7 @@ module datapath (input CLK, RESET);
 	
 	// data memory
 
-	ezcache cash(.addy(ExecuteOutM), .write_data(WriteDataM), .datareadmiss(datareadmiss), .memwrite(MemWriteM), .memtoreg(MemtoRegM), .readready(ReadReady), .Rst(RESET), .Clk(CLK),
+	ezcache cash(.addy(ExecuteOutM), .write_data(WriteDataM), .datareadmiss(datareadmiss), .memwrite(MemWriteM), .memtoreg(MemtoRegM), .memtorege(MemtoRegE), .readready(ReadReady), .Rst(RESET), .Clk(CLK),
 			.writeready(WriteReady), .data(ReadDataM), .datawrite(datawrite), .address(addymem), .memwritethru(memwritethru), .readmiss(readmiss)); 	
 
 	data_memory dmem( .Address(addymem), .Read_data(datareadmiss), .MemWriteThrough(memwritethru), .Write_data(datawrite), .ReadMiss(readmiss), .ReadReady(ReadReady),
@@ -161,6 +161,7 @@ module datapath (input CLK, RESET);
 				.RegWriteW(RegWriteW), .RegWriteM(RegWriteM), .MemtoRegM(MemtoRegM), .RegWriteE(RegWriteE), .MemtoRegE(MemtoRegE), .MemWriteM(MemWriteM),
 				.MemWriteE(MemWriteE), 
 				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .writemiss(memwritethru), .readmiss(readmiss), .ireadmiss(ireadmiss),
+				.MemWriteD(MemWriteD), .MemtoRegD(MemtoRegD), 
 				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .FlushW(FlushW), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
 				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .iReadReady(ireadready), .WriteReady(WriteReady));
 	

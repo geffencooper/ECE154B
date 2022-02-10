@@ -2,8 +2,9 @@ module ezcache
 #(parameter ROWS = 32'h00000040) //64 rows
 (input [31:0] addy, write_data, 
  input [127:0] datareadmiss, 
- input memwrite, memtoreg, readready, Rst, Clk, writeready,
- output reg [31:0] data, datawrite, address, //changed from addymem -> address (and in datapath)
+ input memwrite, memtoreg, memtorege, readready, Rst, Clk, writeready,
+ output reg [31:0] datawrite, address, //changed from addymem -> address (and in datapath)
+ output [31:0] data,
  output reg memwritethru, readmiss);
 
 reg [2:0] state;
@@ -15,15 +16,15 @@ reg [2:0] state;
 	WRITEmiss = 3'b011; // do the multiplication
 
 	wire [21:0] tag;
-	wire [6:0] set;
+	wire [5:0] set;
 	wire [1:0] blk_offset;
 
 	reg [31:0] write_word; //stored in internal reg
 	reg [31:0] addymem;   //stored in internal reg
 	
-	assign tag = address[31:10];  //18 bit tag
-	assign set = address[9:4];  //64 sets =  6 control bits to select right set
-	assign blk_offset = address[3:2]; //block size 4
+	assign tag = addy[31:10];  //
+	assign set = addy[9:4];  //64 sets =  6 control bits to select right set
+	assign blk_offset = addy[3:2]; //block size 4
 
 
 	reg [150:0] way1[0:ROWS-1];  //0
@@ -59,7 +60,7 @@ reg [2:0] state;
 					       //so, only hits will passs
 
 	//mux below selects the correct word from the block, sent to intermediate value, so that only set to that if its accurate/valid/needed
-	mux4 blk_select(.d0(databus[31:0]), .d1(databus[63:32]), .d2(databus[95:64]), .d3(databus[127:96]), .s(blk_offset), .y(outmux));
+	mux4 blk_select(.d0(databus[31:0]), .d1(databus[63:32]), .d2(databus[95:64]), .d3(databus[127:96]), .s(blk_offset), .y(data));
 
 	assign hit = hit1||hit2; //there is a hit if either way hits
 	integer i;
@@ -68,7 +69,7 @@ reg [2:0] state;
 		state <= INIT; //ad other things on reset
 		memwritethru <= 0;
 		readmiss <= 0;
-	 	data <= 32'b0;
+	 	//data <= 32'b0;
 		datawrite <= 32'b0;
 		addymem <= 32'b0;
 		address <= 32'b0;
@@ -100,7 +101,7 @@ reg [2:0] state;
 				datawrite <= write_data;
 				if (memtoreg && hit)	//read hit, just read the data and update lru.
 				begin			//since it is so simple, no need for another state
-					data <= outmux;
+					//data <= outmux;
 					readmiss <= 0;
 					memwritethru <= 0;
 					if(hit1)
@@ -112,14 +113,7 @@ reg [2:0] state;
 						lru[set] <=0;
 					end
 				end
-				else if (memtoreg && ~hit) //read miss: let memory know it has to start reading, gives it address as well, 
-				begin			   // switches to READ state
-					readmiss <= 1; //read control signal to memory
-					memwritethru <= 0;
-					addymem <= address;
-					state <= READ;
-				end
-				else if (memwrite && hit) //write hit: tell memory to start writing the given value to the given address
+				else if (memwrite && hit && ~readready) //write hit: tell memory to start writing the given value to the given address
 				begin			  //also changes to WRITEhit state
 					addymem <= address;
 					memwritethru <= 1;  //write control signal to memory
@@ -132,6 +126,13 @@ reg [2:0] state;
 					memwritethru <= 1;
 					readmiss <=1;
 					state <= WRITEmiss;
+				end
+				else if (memtoreg && ~hit) //read miss: let memory know it has to start reading, gives it address as well, 
+				begin			   // switches to READ state
+					readmiss <= 1; //read control signal to memory
+					memwritethru <= 0;
+					addymem <= address;
+					state <= READ;
 				end
 			end
 		end
@@ -205,20 +206,21 @@ reg [2:0] state;
 			begin
 				if(lru[set]) //if way 2 was lru replace way2
 				begin
-					way2[set][127:0] <= datareadmiss;  //update bwith block from memory
-					way2[set][149:128] <= tag;	   //update tag
-					way2[set][150] <= 1;		   // data now valid
-					lru[set] <= 0;  		   // update lru
+					way2[set][127:0] = datareadmiss;  //update bwith block from memory
+					way2[set][149:128] = tag;	   //update tag
+					way2[set][150] = 1;		   // data now valid
+					lru[set] = 0;  			   // update lru
 				end
 				else	//if way1 was lru replace way1
 				begin
-					way1[set][127:0] <= datareadmiss;
-					way1[set][149:128] <= tag;
-					way1[set][150] <= 1;
-					lru[set] <= 1; 
+					way1[set][127:0] = datareadmiss;
+					way1[set][149:128] = tag;
+					way1[set][150] = 1;
+					lru[set] = 1; 
 				end
-				data <= outmux;  //read output is the output of the hit/miss identifier earlier
-				state <= INIT;  //go back to INIT
+				//data = outmux;  //read output is the output of the hit/miss identifier earlier
+				readmiss = 0;
+				state = INIT;  //go back to INIT
 			end
 		end
 		endcase

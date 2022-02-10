@@ -1,7 +1,7 @@
 module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW, 
 		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, iReadReady, WriteReady, MemWriteE,
 		input [5:0] op, funct,
-		input rst,clk, Valid, writemiss, readmiss, ireadmiss,
+		input rst,clk, Valid, writemiss, readmiss, ireadmiss, MemtoRegD, MemWriteD,
 		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD, ForwardBD, 
 		output reg [1:0] ForwardAE, ForwardBE);
 
@@ -39,7 +39,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	end
 	
 	// we only stall on the posedge because these signals stay high until the request is ready
-	always @(posedge MemWriteE, posedge MemtoRegE) 
+	always @(posedge MemWriteE, posedge MemtoRegE)//, posedge MemWriteD, posedge MemtoRegD) 
 	begin
 		// if a sw is already in progress (WRITING stage), then stall until it is done
 		if(store_inprog || read_inprog)
@@ -48,22 +48,21 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		end
 	end
 	
-	always @(posedge clk)
+	always @(posedge ireadmiss)
 	begin
-		if(iread_inprog)
-		begin
-			IMEM_STALLED <= 1;
-		end
+		IMEM_STALLED <= 1;
 	end
 
 	// if we do a sw (always writethrough) then set the register
 	always @(posedge writemiss)
 	begin		
 		store_inprog <=1;
+		//DMEM_STALLED <= 1;
 	end
 	always @(posedge readmiss)
 	begin
 		read_inprog <=1;
+		DMEM_STALLED <= 1;
 	end
 	
 	always @(posedge ireadmiss)
@@ -128,6 +127,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	always @(posedge iReadReady)
 	begin
 		IMEM_STALLED <= 0;
+		iread_inprog <=0;
 	end
 
 endmodule
