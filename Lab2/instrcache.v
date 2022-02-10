@@ -1,7 +1,7 @@
 module icache 
 #(parameter ROWS = 32'h00000001) //1 rows
 (input [31:0] addy, 
- input [127:0] datareadmiss, 
+ input [4095:0] datareadmiss, 
  input readready, Rst, Clk,
  output reg [31:0] data, address, 
  output reg readmiss);
@@ -12,19 +12,20 @@ reg [2:0] state;
 	parameter INIT  = 3'b000, // initial, wait for start signal
 	READ = 3'b001; // if memtoreg == 1, and a miss
 
-	wire [17:0] tag;
-	wire [1:0] blk_offset;
+	wire [23:0] tag;
+	wire [7:0] blk_offset;
 
 	reg [31:0] addymem;   //stored in internal reg
 	
-	assign tag = address[31:14];
-	assign blk_offset = address[3:2]; //block size 4
+	assign tag = address[31:9];
+	assign blk_offset = address[8:2]; //block size 128
 
 
-	reg [146:0] way1; //update number of bits
+	reg [4119:0] way1; //update number of bits
 	
 	wire v1, eq1, hit1;
-	wire [127:0] data1, databus1;
+	wire [4095:0] data1, databus1;
+	wire [255:0] middata;
 	wire [17:0] tag1;
 
 	assign v1 = way1[146];
@@ -36,6 +37,16 @@ reg [2:0] state;
 
 	buffer buf1(.enable(hit1), .datasrc(data1), .databus(databus1));
 	
+	mux16 mux16s(.d0(databus1[255:0]), .d1(databus1[511:256]), .d2(databus1[767:512]), .d3(databus1[1023:768]), 
+		     .d4(databus1[1279:1024]), .d5(databus1[1535:1280]), .d6(databus1[1791:1536]), .d7(databus1[2047:1792]), 
+		     .d8(databus1[2303:2048]), .d9(databus1[2559:2304]), .d10(databus1[2815:2560]), .d11(databus1[3071:2816]), 
+		     .d12(databus1[3327:3078]), .d13(databus1[3583:3328]), .d14(databus1[3839:3584]), .d15(databus1[4095:3840]),
+		     .s(blk_offset[6:3]), .y(middata));
+
+	mux8 mux8s(.d0(middata[31:0]), .d1(middata[63:32]), .d2(middata[95:64]), .d3(middata[127:96]), 
+		   .d4(middata[159:128]), .d5(middata[191:160]), .d6(middata[223:192]), .d7(middata[255:224]), 
+		   .s(blk_offset[2:0]), .y(data));
+
 	integer i;
 	always @(posedge Rst)
 	begin
@@ -88,6 +99,18 @@ reg [2:0] state;
 	end
 
 endmodule
+
+// MUX 8:1 //
+module mux8 #(parameter WIDTH = 32)
+	(input [WIDTH-1:0] d0, d1, d2, d3, d4, d5, d6, d7, input [2:0] s, output [WIDTH-1:0] y); 
+	assign y = s[2] ? (s[1] ? (s[0] ? d7:d6):(s[0] ? d5:d4)):(s[1] ? (s[0] ? d3:d2):(s[0] ? d1:d0));
+endmodule 
+
+// MUX 16:1 //
+module mux16 #(parameter WIDTH = 256)
+	(input [WIDTH-1:0] d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, input [3:0] s, output [WIDTH-1:0] y); 
+	assign y = s[3] ? (s[2] ? (s[1] ? (s[0] ? d7:d6):(s[0] ? d5:d4)):(s[1] ? (s[0] ? d3:d2):(s[0] ? d1:d0))):(s[2] ? (s[1] ? (s[0] ? d7:d6):(s[0] ? d5:d4)):(s[1] ? (s[0] ? d3:d2):(s[0] ? d1:d0)));
+endmodule 
 
 
 module buffer (input enable, input [127:0] datasrc, output [127:0] databus);

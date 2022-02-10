@@ -4,6 +4,9 @@ module datapath (input CLK, RESET);
 	wire [31:0] InstrF, PCPlus4F, PCBranchD, PCInter, PCJump, PCprime, PCF, InstrD, PCPlus4D;
 	wire PCSrcD, jumpD, StallF, FlushD, StallD, StallE, StallM;
 	wire [31:0] liljump;
+	wire ireadmiss, ireadready;
+	wire [31:0] iaddy;
+	wire [4095:0] idata;
 	
 	// decode and execute wires
 	wire MemtoRegD, MemWriteD, RegDstD, RegWriteD, start_multD, mult_signD;
@@ -49,7 +52,13 @@ module datapath (input CLK, RESET);
 
         // pc register and instruction memory
 	register #(32) PCreg( .D(PCprime), .Q(PCF), .En(StallF), .Clk(CLK), .Clr(RESET));
-	inst_memory #(38) imem( .Address(PCF), .Read_data(InstrF));
+
+	icache instr_cache(.addy(PCF), .datareadmiss(idata),. readready(ireadready), 
+			   .Rst(RESET), .Clk(CLK),
+			   .data(InstrF), .address(iaddy), .readmiss(ireadmiss));
+
+	inst_memory #(38) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
+				.abort(1'b0), .Clk(CLK), .Rst(RESET));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
         // flush fetch stage when have a jump instruction or a branch instruction
@@ -151,9 +160,9 @@ module datapath (input CLK, RESET);
 	hazard hazard_unit(	.RsE(RsE), .RtE(RtE), .RsD(InstrD[25:21]), .RtD(InstrD[20:16]), .WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .WriteRegW(WriteRegW), 
 				.RegWriteW(RegWriteW), .RegWriteM(RegWriteM), .MemtoRegM(MemtoRegM), .RegWriteE(RegWriteE), .MemtoRegE(MemtoRegE), .MemWriteM(MemWriteM),
 				.MemWriteE(MemWriteE), 
-				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .writemiss(memwritethru),
+				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .writemiss(memwritethru), .readmiss(readmiss), .ireadmiss(ireadmiss),
 				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .FlushW(FlushW), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
-				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .WriteReady(WriteReady));
+				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .iReadReady(ireadready), .WriteReady(WriteReady));
 	
 
 endmodule

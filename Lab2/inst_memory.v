@@ -1,6 +1,6 @@
 module inst_memory
 #(parameter ROWS = 32'h00000200, // reduce address space to 0-0x800 (512 words)
-  parameter BLOCK_SIZE = 32'h64)  // block size in words
+  parameter BLOCK_SIZE = 32'h128)  // block size in words
 (
     input [31:0] Address, // address to read on a miss (start of the block)
     output reg [32*BLOCK_SIZE-1:0] Read_data, // data read from address (read the whole block)

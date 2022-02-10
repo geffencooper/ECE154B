@@ -1,7 +1,7 @@
 module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW, 
-		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, WriteReady, MemWriteE,
+		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, iReadReady, WriteReady, MemWriteE,
 		input [5:0] op, funct,
-		input rst,clk, Valid, writemiss,
+		input rst,clk, Valid, writemiss, readmiss, ireadmiss,
 		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD, ForwardBD, 
 		output reg [1:0] ForwardAE, ForwardBE);
 
@@ -12,6 +12,8 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	reg DMEM_STALLED;
 	reg IMEM_STALLED;
 	reg store_inprog;
+	reg read_inprog;
+	reg iread_inprog;
 
 	// reset registers on global reset
 	always @(posedge rst)
@@ -32,22 +34,43 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		DMEM_STALLED <= 0;
 		IMEM_STALLED <= 0;
 		store_inprog <= 0;
+		read_inprog <=0;
+		iread_inprog <= 0;
 	end
 	
 	// we only stall on the posedge because these signals stay high until the request is ready
 	always @(posedge MemWriteE, posedge MemtoRegE) 
 	begin
 		// if a sw is already in progress (WRITING stage), then stall until it is done
-		if(store_inprog)
+		if(store_inprog || read_inprog)
 		begin
 			DMEM_STALLED <= 1; // should cause always block below to reevaluate
 		end
 	end
+	
+	always @(posedge clk)
+	begin
+		if(iread_inprog)
+		begin
+			IMEM_STALLED <= 1;
+		end
+	end
+
 	// if we do a sw (always writethrough) then set the register
 	always @(posedge writemiss)
 	begin		
 		store_inprog <=1;
 	end
+	always @(posedge readmiss)
+	begin
+		read_inprog <=1;
+	end
+	
+	always @(posedge ireadmiss)
+	begin
+		iread_inprog <=1;
+	end
+
 	// we wanted our hazards to resolve immediately but decided to make them registers instead of
 	// wires because we were getting 'unknown' spike values on clock edges because the input signals
 	// are in a brief state of uncertainty. To fix this bug we made them registers and had them change when
@@ -58,7 +81,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		branch <= (op == 6'b000100 || op == 6'b000101) ? 1 : 0;
 	
 		// a stall in one stage should stall the stages before it
-		StallF <= lwstall || branchstall || multstall || DMEM_STALLED;
+		StallF <= lwstall || branchstall || multstall || DMEM_STALLED || IMEM_STALLED;
 		StallD <= lwstall || branchstall || multstall || DMEM_STALLED;
 		StallE <= multstall || DMEM_STALLED;
 		StallM <= DMEM_STALLED;
@@ -99,5 +122,12 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 	begin
 		DMEM_STALLED <= 0;
 		store_inprog <= 0;
+		read_inprog <= 0;
 	end
+
+	always @(posedge iReadReady)
+	begin
+		IMEM_STALLED <= 0;
+	end
+
 endmodule
