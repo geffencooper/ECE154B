@@ -1,5 +1,5 @@
 module data_memory
-#(parameter ROWS = 32'h00000040, // reduce address space to 0-0x100 (64 words)
+#(parameter ROWS = 32'h00004000, // reduce address space to 0-0x100 (64 words)
   parameter BLOCK_SIZE = 32'h4)  // block size in words, 4 words --> 16 bytes
 (
     input [31:0] Address, // address to read/write on a miss (start of the block)
@@ -39,6 +39,7 @@ assign WriteReady = (state == WRITE_READY);
 
 // save read/write address, and write data because could change next cycle
 reg [31:0] address;
+reg [31:0] curr_address;
 reg [31:0] write_data;
 
 // state register for read and write on a sw miss
@@ -56,6 +57,7 @@ begin
 	write_data <= 32'b0;
 	Read_data <= 32'b0;
 	sw_miss <= 0;
+	curr_address <= 0;
 
 	// set the memory to all zeros to avoid xxxx...
 	for(idx = 0; idx < ROWS; idx = idx + 1)
@@ -115,9 +117,9 @@ begin
 				for(i = 0; i < BLOCK_SIZE; i = i + 1)
 				begin   // Read_data[(i*32) + 31 : i*32]  --> this gets each word in the block indivually (e.g. read_data[31:0], read_data[63:32])
 					// memory[(address + i*4)[31:2]]--> this gets the next word address (e.g. 0x00, 0x04, 0x08, 0x0C)
-					read_address = read_address + (i << 2); // needs to be blocking
+					curr_address = read_address + (i << 2); // needs to be blocking
 					start = (i << 5) + 31;
-					Read_data[start-:32] = memory[read_address[31:2]];
+					Read_data[start-:32] = memory[curr_address[31:2]];
 				end
 				// if it was a sw miss then we also need to update a word in the block after sending it to the cache
 				if(sw_miss)

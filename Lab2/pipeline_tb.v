@@ -32,7 +32,6 @@ module pipeline_tb();
     initial
     begin
 	// global reset for all registers
-	#1;
         rst = 1;
         #2;
         rst = 0;

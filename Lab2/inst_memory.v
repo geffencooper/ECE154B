@@ -1,6 +1,6 @@
 module inst_memory
 #(parameter ROWS = 32'h00000200, // reduce address space to 0-0x800 (512 words)
-  parameter BLOCK_SIZE = 32'h64)  // block size in words
+  parameter BLOCK_SIZE = 32'h80)  // block size in words
 (
     input [31:0] Address, // address to read on a miss (start of the block)
     output reg [32*BLOCK_SIZE-1:0] Read_data, // data read from address (read the whole block)
@@ -37,6 +37,7 @@ assign ReadReady = (state == READ_READY);
 reg [31:0] address;
 
 // reset internal registers
+integer idx;
 always @(posedge Rst)
 begin
 	state <= IDLE;
@@ -44,6 +45,7 @@ begin
 	address <= 32'b0;
 	read_address <= 32'b0;
 	Read_data <= 32'b0;
+
 end
 
 // The data memory is now a state machine:
@@ -74,15 +76,15 @@ begin
 			else if(delay_count == 8'h12) // when count reads 18, 19 cycles have passed, read now so ready by 20th
 			begin
 				// read the whole block
-				read_address = address & 32'hfffffff0; //change block offset to 0 so can grab correct block
+				read_address = address & 32'hfffffe00; //change block offset to 0 so can grab correct block
 				
 				// iterate through the block and put on read bus
 				for(i = 0; i < BLOCK_SIZE; i = i + 1)
 				begin   // Read_data[(i*32) + 31 : i*32]  --> this gets each word in the block indivually (e.g. read_data[31:0], read_data[63:32])
 					// memory[(address + i*4)[31:2]]--> this gets the next word address (e.g. 0x00, 0x04, 0x08, 0x0C)
-					read_address = read_address + (i << 2); // needs to be blocking
+					address = read_address + (i << 2); // needs to be blocking
 					start = (i << 5) + 31;
-					Read_data[start-:32] = memory[read_address[31:2]];
+					Read_data[start-:32] = memory[address[31:2]];
 				end
 				delay_count = delay_count + 1;
 			end
