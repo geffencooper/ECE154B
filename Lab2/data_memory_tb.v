@@ -30,9 +30,6 @@ module data_memory_tb();
     initial 
     begin
         clk = 0;
-	
-	// initialize memory to zeros
-	$readmemh("data_mem_init.mem", mem.memory);
 
 	// read in test cases
 	$readmemh("dmem_tb_cases.mem", test_cases);
@@ -73,16 +70,6 @@ module data_memory_tb();
 		
 		// continue on the next posedge
 		#2;
-		//$display("rr: %h, wr: %h",ReadReady,WriteReady);
-		// check expected vs actual output
-		if((expected_value != read_data) || (read_data === 64'hxxxxxxxx))
-		begin
-			$display("----Failed Case %d. Expected: 0X%h | Actual: 0X%h", i, expected_value, read_data);
-		end
-		else
-		begin
-			$display("Passed Case %d. Expected: 0X%h | Actual: 0X%h", i, expected_value, read_data);
-		end
 	end
     end
 endmodule
