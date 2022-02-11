@@ -57,8 +57,8 @@ module datapath (input CLK, RESET);
 			   .Rst(RESET), .Clk(CLK),
 			   .data(InstrF), .address(iaddy), .readmiss(ireadmiss));
 
-	inst_memory #(11) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
-				.abort(1'b0), .Clk(CLK), .Rst(RESET));
+	inst_memory #(65) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
+				.abort(PCSrcD), .Clk(CLK), .Rst(RESET));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
         // flush fetch stage when have a jump instruction or a branch instruction

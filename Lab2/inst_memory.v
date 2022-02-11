@@ -104,6 +104,6 @@ end
 // if we receive an abort signal, go back to idle (forget about reading from memory)
 always @(posedge abort)
 begin
-	state <= IDLE;
+	state <= READ_READY;
 end
 endmodule
