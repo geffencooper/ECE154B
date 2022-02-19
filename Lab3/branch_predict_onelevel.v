@@ -1,6 +1,6 @@
 module btbuff #(parameter ROWS = 32'h00000020)  //32 , 2^5
 (input [31:0] PC_current, PC, PCBranch, input Branch, BranchTaken, Clk, Rst, input [1:0] statein, 
-		output [31:0] PCPredict)
+		output [31:0] PCPredict, output prediction) //prediction lets hazard unit know if predicted a branch or not
 
 	parameter TAKEN  = 2'b00, // initial, wait for start signal
 	nottaken = 2'b01, // if memtoreg == 1, and a miss
@@ -25,9 +25,17 @@ module btbuff #(parameter ROWS = 32'h00000020)  //32 , 2^5
 
 	always @(posedge PC_current)
 	begin
-		if ((PC_current == buff[buff_offset_current][65:34]) && ~state[0])
+		if ((PC_current == buff[buff_offset_current][65:34]) && ~state[0] && buff[buff_offset_current][66])
 		begin
 			PCPredict <= buff[buff_offset_current][33:2];
+			if (
+			prediction <= 1;
+			
+		end
+		else
+		begin
+			PCPredict <= PC + 32'b4;
+			prediction <= 0;
 		end
 	end
 

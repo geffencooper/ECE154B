@@ -7,6 +7,7 @@ module datapath (input CLK, RESET);
 	wire ireadmiss, ireadready;
 	wire [31:0] iaddy;
 	wire [4095:0] idata;
+	wire predictionF;
 	
 	// decode and execute wires
 	wire MemtoRegD, MemWriteD, RegDstD, RegWriteD, start_multD, mult_signD;
@@ -20,6 +21,8 @@ module datapath (input CLK, RESET);
 	wire [31:0] RD1E, RD2E; 
 	wire [4:0] RsE, RtE, RdE;
 	wire FlushE;
+	wire isBranchD, isBranchE, predictionD, PCSrcE;
+	wire [31:0] PCE, PCD, PCBranchE;
 
 	// execute and memory wires
 	wire MemtoRegE, MemWriteE, RegDstE, RegWriteE, start_multE, mult_signE, jumpE, jumpM, jumpW;
@@ -50,6 +53,10 @@ module datapath (input CLK, RESET);
 	mux2 branchmux( .d0(PCPlus4F) , .d1(PCBranchD), .s(PCSrcD), .y(PCInter));
 	mux2 jumpmux( .d0(PCInter), .d1(PCJump), .s(jumpD), .y(PCprime));
 
+	btbuff (.PC_current(PCF), .PC(PCE), .PCBranch(PCBranchE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), 
+		.statein(branchstate), .PCPredict(), .prediction(predictionF)) //PCPredict is output to the new mux
+
+
         // pc register and instruction memory
 	register #(32) PCreg( .D(PCprime), .Q(PCF), .En(StallF), .Clk(CLK), .Clr(RESET));
 
@@ -62,10 +69,11 @@ module datapath (input CLK, RESET);
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
         // flush fetch stage when have a jump instruction or a branch instruction
-	assign FlushD = jumpD || PCSrcD;
+	assign FlushD = jumpD || (PCSrcD^predictionD);
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
-	FDReg fdreg( .InstrF(InstrF), .InstrD(InstrD), .PCPlus4F(PCPlus4F), .PCPlus4D(PCPlus4D), .En(StallD), .Clk(CLK), .Clr(FlushD || RESET));
+	FDReg fdreg( .InstrF(InstrF), .InstrD(InstrD), .PCPlus4F(PCPlus4F), .PCPlus4D(PCPlus4D), .PCF(PCF), .PCD(PCD), 
+			.predictionF(predictionF), .predictionD(predictionD), .En(StallD), .Clk(CLK), .Clr(FlushD || RESET));
 	
         //jump target addy
 	shftr jumpshift( .a({6'b0,InstrD[25:0]}), .y(liljump));
@@ -94,7 +102,7 @@ module datapath (input CLK, RESET);
 	mux2 branchfwdb( .d0(RD2D), .d1(ExecuteOutM), .s(ForwardBD), .y(branch_checkB));
 
 	// branch comparator
-	equality eq( .op(InstrD[31:26]), .srca(branch_checkA), .srcb(branch_checkB), .StallD(StallD), .eq_ne(PCSrcD));
+	equality eq( .op(InstrD[31:26]), .srca(branch_checkA), .srcb(branch_checkB), .StallD(StallD), .eq_ne(PCSrcD), .branch());
 	
 	// decode execute pipeline register, clear on a flush or reset
 	DEReg dereg( 	.RegWriteD(RegWriteD), .RegWriteE(RegWriteE), .MemtoRegD(MemtoRegD), .MemtoRegE(MemtoRegE), .MemWriteD(MemWriteD), 
@@ -103,9 +111,12 @@ module datapath (input CLK, RESET);
 			.MultSignE(mult_signE), .OutSelectD(out_selectD), .OutSelectE(out_selectE), .jumpD(jumpD), .jumpE(jumpE),
 			.Rd1D(RD1D), .Rd2D(RD2D), .Rd1E(RD1E), .Rd2E(RD2E), .RsD(InstrD[25:21]), .RsE(RsE), .RtD(InstrD[20:16]), 
 			.RtE(RtE), .RdD(InstrD[15:11]), . RdE(RdE), .SEimmD(SEimmD), .SEimmE(SEimmE), .ZEimmD(ZEimmD), .ZEimmE(ZEimmE),
-			.ZPimmD(ZPimmD), .ZPimmE(ZPimmE), .PCPlus4D(PCPlus4D), .PCPlus4E(PCPlus4E), .Clk(CLK), .Clr(FlushE || RESET), .En(StallE));
+			.ZPimmD(ZPimmD), .ZPimmE(ZPimmE), .PCPlus4D(PCPlus4D), .PCPlus4E(PCPlus4E), .Clk(CLK), .Clr(FlushE || RESET), .En(StallE)
+			.PCE(PCE), .PCD(PCD), .isBranchE(isBranchE), .isBranchD(isBranchD), .PCSrcE(PCSrcE), .PCSrcD(PCSrcD), .PCBranchE(PCBranchE), .PCBranchD(PCBranchD));
 
 //-----------------EXECUTE----------------//
+
+	bht bhtable(.PC(PCE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), .stateout(brancstate));
 
 	// muxes for determining the destination register
 	mux2 #(5) regdest( .d0(RtE), .d1(RdE), .s(RegDstE), .y(prejumpWriteRegE));
@@ -154,7 +165,7 @@ module datapath (input CLK, RESET);
 	mux2 mem2reg( .d0(ExecuteOutW), .d1(ReadDataW), .s(MemtoRegW), .y(interResultW));
 	mux2 jalmux( .d0(interResultW), .d1(PCPlus4W), .s(jumpW), .y(ResultW));
 
-//---------------EDEN HAZARD------------------//
+//---------------THORGAN HAZARD------------------//
 
 	// hazard unit
 	hazard hazard_unit(	.RsE(RsE), .RtE(RtE), .RsD(InstrD[25:21]), .RtD(InstrD[20:16]), .WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .WriteRegW(WriteRegW), 
@@ -171,11 +182,13 @@ endmodule
 module equality (	input [5:0] op, 
 			input [31:0] srca, srcb, 
 			input StallD,
-			output eq_ne);
+			output eq_ne, branch);
 
 	// if srca == scrb and its a beq, or if srca != srcb and its a bne, eq_ne =1 , else eq_ne = 0
-
+	
 	assign eq_ne = (srca==srcb) ? ((op == 6'b000100 && StallD == 0) ? 1:0) : ((op == 6'b000101 && StallD == 0) ? 1:0);
+
+	assign branch = (op == 6'b000100 || op == 6'b000101) ? 1:0;
 endmodule
 
 // MULTIPLEXER 2:1 //

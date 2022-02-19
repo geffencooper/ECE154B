@@ -22,6 +22,14 @@ module DEReg
     output reg [1:0] OutSelectE,
     input jumpD,
     output reg jumpE,
+    input [31:0] PCD,
+    output reg [31:0] PCE,
+    input isBranchD,
+    output reg isBranchE,
+    input PCSrcD,
+    output reg PCSrcE,
+    input [31:0] PCBranchD,
+    output reg [31:0] PCBranchE,
 
     // datapath signals to forward
     input [31:0] Rd1D, // register file reg1 from decode stage
@@ -66,6 +74,11 @@ begin
     	jumpE <= 0;
 	PCPlus4E <= 32'h0;
 
+	PCE <= 32'b0;
+	isBranchE <= 0;
+	PCSrcE <= 0;
+	PCBranchE <=32'b0;
+
     	Rd1E <= 32'h0;
     	Rd2E <= 32'h0;
     	RsE <= 5'h0;
@@ -88,6 +101,11 @@ begin
         OutSelectE <= OutSelectD;
         jumpE <= jumpD;
 	PCPlus4E <= PCPlus4D;
+
+	PCE <= PCD;
+	isBranchE <= isBranchD;
+	PCSrcE <= PCSrcD;
+	PCBranchE <= PCBranchD;
 
         // get the next input on the rising clock edge
         Rd1E <= Rd1D;
