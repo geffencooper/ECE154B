@@ -68,7 +68,7 @@ module datapath (input CLK, RESET);
 				.abort(1'b0), .Clk(CLK), .Rst(RESET));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
-        // flush fetch stage when have a jump instruction or a branch instruction
+        // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
 	assign FlushD = jumpD || (PCSrcD^predictionD);
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
