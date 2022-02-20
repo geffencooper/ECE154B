@@ -1,5 +1,5 @@
 // branch target buffer
-module btbuff_ #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
+module btbuff #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 (
 	input [31:0] PC_current, // current program counter in fetch stage used to index into buffer
 	input [31:0] PC, // program counter in execute stage from last branch, used to update state bits
@@ -82,8 +82,65 @@ module btbuff_ #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 
 endmodule
 
+module twolevel_bp #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
+(
+	input Clk, Rst,
+	input [31:0] PC, // propagated program counter to execute stage
+	input Branch, // control signal from decode stage, says if there was a branch
+	input BranchTaken, // control signal from decode stage, says if the branch was taken
+	output reg [1:0] stateout // 2 bit predictor bits (current pediciton state)
+);
+
+	parameter TAKEN  = 2'b00, // strongly taken
+	taken = 2'b01, // weakly taken
+	nottaken = 2'b10, // weakly not taken
+	NOTTAKEN = 2'b11; // stringly not taken
+
+	reg [1:0] global_state;
+
+	reg [7:0] bhtable[0:ROWS-1][0:3]; 
+
+	wire [6:0] table_offset;
+
+	// since byte addressable, ignore lower 2 bits because always 0
+	assign table_offset = PC[8:2]; //seven bits to select one of the 2^7 table entries
+ 
+	integer i, j;
+	// reset the branch history table
+	always @(posedge Rst)  
+	begin		
+		stateout <= 2'b11;	
+		for (i=0;i<ROWS;i=i+1)
+		begin
+			for (j=0;j<4;j=j+1)
+			begin
+			bhtable[i][j] <= 2'b11; //on a reset, default all to Strongly Not taken
+			end
+		end
+		global_state <= 2'b11;
+	end
+
+	always @(posedge Branch)
+	begin
+		// 'saturating counter' to implement states
+		case (bhtable[table_offset][global_state])
+			TAKEN : bhtable[table_offset][global_state] <= (~Branch) ? (taken) : (TAKEN);
+			taken : bhtable[table_offset][global_state]  <= (~Branch) ? (nottaken) : (TAKEN);
+			nottaken : bhtable[table_offset][global_state]  <= (~Branch) ? (NOTTAKEN) : (taken);
+			NOTTAKEN : bhtable[table_offset][global_state]  <= (~Branch) ? (NOTTAKEN) : (nottaken);
+		endcase
+
+		// output the new state bits
+		stateout <= bhtable[table_offset][global_state];
+
+		global_state <= {global_state[0],~BranchTaken};
+
+	end 
+
+endmodule
+
 // branch history table
-module bht_ #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
+module bht #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
 (
 	input [31:0] PC, // propagated program counter to execute stage
 	input Branch, // control signal from decode stage, says if there was a branch

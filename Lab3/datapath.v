@@ -119,7 +119,7 @@ module datapath (input CLK, RESET);
 
 //-----------------EXECUTE----------------//
 
-	bht bhtable(.PC(PCE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), .stateout(branchstate));
+	twolevel_bp ranch_predictor(.PC(PCE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), .stateout(branchstate));
 
 	// muxes for determining the destination register
 	mux2 #(5) regdest( .d0(RtE), .d1(RdE), .s(RegDstE), .y(prejumpWriteRegE));
