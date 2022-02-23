@@ -21,7 +21,8 @@ module btbuff #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 	NOTTAKEN = 2'b11; // stringly not taken
 
 	// branch target buffer table
-	reg [66:0] buff[0:ROWS-1];  // 1 Valid Bit, 32 PC bits, 32 PC Prediction bits, 2 state bits
+	reg [72:0] buff[0:ROWS-1];  // 1 Valid Bit, 32 PC bits, 32 PC Prediction bits, 2 state bits
+	reg [1:0] global_state;
 
 	integer i;
 	always @(posedge Rst)  
@@ -29,10 +30,11 @@ module btbuff #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 		btbhit <= 0;
 		prediction <= 0;
 		PCPredict <= 32'b0;
+		global_state <= 2'b11;
 
 		for (i=0;i<ROWS;i=i+1)
 		begin
-			buff[i] <= 67'b0; //on a reset, default all to Strongly Not taken
+			buff[i] <= {65'b0,8'b11}; //on a reset, default all to Strongly Not taken
 		end
 
 	end
@@ -48,20 +50,26 @@ module btbuff #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 	// if there was a branch instruction, need to update the corresponding entry
 	always @(posedge Branch)
 	begin
-		buff[buff_offset][66] <= 1; // make the entry valid
-		buff[buff_offset][65:34] <= PC; // set the PC corresponding to the branch
-		buff[buff_offset][33:2] <= PCBranch; // set the branch taken address
-		buff[buff_offset][1:0] <= statein; // set the state bits
+		buff[buff_offset][72] <= 1; // make the entry valid
+		buff[buff_offset][71:40] <= PC; // set the PC corresponding to the branch
+		buff[buff_offset][39:8] <= PCBranch; // set the branch taken address
+		case(global_state)
+			00: buff[buff_offset][1:0] <= statein; // set the state bits
+			01: buff[buff_offset][3:2] <= statein; // set the state bits
+			10: buff[buff_offset][5:4] <= statein; // set the state bits
+			11: buff[buff_offset][7:6] <= statein; // set the state bits
+		endcase
+	global_state <= {global_state[0],~BranchTaken};
 	end
 
 	// every time the current program counter changes, generate the next PC
 	always @(PC_current)
 	begin
 		// if we find the current PC in the buffer, it is valid, and the state bits signify a taken 
-		if (buff[buff_offset_current][66] && (PC_current == buff[buff_offset_current][65:34]) && ~buff[buff_offset_current][1])
+		if (buff[buff_offset_current][72] && (PC_current == buff[buff_offset_current][71:40]) && ~buff[buff_offset_current][(1 + (global_state<<1))])
 		begin
 			// branch taken predicted, get the address
-			PCPredict <= buff[buff_offset_current][33:2];
+			PCPredict <= buff[buff_offset_current][39:8];
 			
 			// tell the hazard unit we predicted a branch taken in case we need to flush
 			prediction <= 1;

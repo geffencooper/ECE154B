@@ -51,10 +51,10 @@ module datapath (input CLK, RESET);
 
 //-----------------FETCH----------------//
 	// PC Selection
-	mux2 branchmux( .d0(PCPlus4F) , .d1(PCBranchD), .s((PCSrcD ^ predictionD)), .y(PCInter));
-	mux2 jumpmux( .d0(PCInter), .d1(PCJump), .s(jumpD), .y(PCInter2));
+	mux2 branchmux( .d0(PCInter2) , .d1(PCBranchD), .s((PCSrcD ^ predictionD)), .y(PCprime));
+	mux2 jumpmux( .d0(PCPlus4F), .d1(PCJump), .s(jumpD), .y(PCInter));
 
-	mux2 predictmux( .d0(PCInter2), .d1(PCPredict), .s(btbhit), .y(PCprime));
+	mux2 predictmux( .d0(PCInter), .d1(PCPredict), .s(btbhit), .y(PCInter2));
 
 	btbuff btbuffer(.PC_current(PCF), .PC(PCE), .PCBranch(PCBranchE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), 
 		.statein(branchstate), .PCPredict(PCPredict), .prediction(predictionF), .btbhit(btbhit)); //PCPredict is output to the new mux
