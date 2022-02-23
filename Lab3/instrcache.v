@@ -2,7 +2,7 @@ module icache
 #(parameter ROWS = 32'h00000001) //1 rows
 (input [31:0] addy, 
  input [4095:0] datareadmiss, 
- input readready, Rst, Clk,
+ input readready, Rst, Clk, abort,
  output reg [31:0] data, 
  output reg [31:0] address, 
  output reg readmiss);
@@ -17,6 +17,8 @@ reg [2:0] state;
 
 	wire [23:0] tag;
 	wire [7:0] blk_offset;
+
+	reg abortion;
 
 	reg [31:0] addymem;   //stored in internal reg
 	
@@ -64,11 +66,12 @@ reg [2:0] state;
 	
 
 
-	always @(posedge readready, posedge Clk, hit1, addy, datai) //added posedge write_word
+	always @(posedge readready, posedge Clk, hit1, addy, datai, posedge abort) //added posedge write_word
 	begin
    		case(state)
 		INIT: begin
-			if (readready)
+			abortion <= abort;
+			if (readready || abortion)
 			begin
 				readmiss<=0;
 			end
@@ -81,7 +84,7 @@ reg [2:0] state;
 					data <= datai;
 					readmiss <= 0;
 				end
-				else if (~hit1)
+				else if (~hit1&&~abortion)
 				begin
 					readmiss <= 1;
 					addymem <= address;
@@ -90,13 +93,18 @@ reg [2:0] state;
 			end
 		end
 		READ: begin
-			if(readready == 1) //how to wait for this
+			if(readready == 1) 
 			begin
 				way1[4095:0] = datareadmiss;
 				way1[4118:4096] = tag;
 				way1[4119] = 1;
 				data = datai;
 				readmiss = 0;
+				state = INIT;
+			end
+			else if (abortion)
+			begin
+				abortion = 0;
 				state = INIT;
 			end
 		end

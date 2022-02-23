@@ -38,6 +38,7 @@ module maindec(	input	[5:0] op, funct,
 				6'b011001: controls <= 13'b0000000100010; //multu
 				6'b010000: controls <= 13'b1100000101000; //mfhi
 				6'b010010: controls <= 13'b1100000101100; //mflo
+				6'b000000: controls <= 13'b0; //usually means sll but we dont have it so just saying a nop
 				default: controls <= 13'b1100000100000; //Rtype (besides mult, multu)
 			endcase
 			6'b100011: controls <= 13'b1001010000000; //lw

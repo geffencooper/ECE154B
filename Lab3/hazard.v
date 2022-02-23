@@ -1,7 +1,7 @@
 module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW, 
 		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, iReadReady, WriteReady, MemWriteE,
 		input [5:0] op, funct,
-		input rst,clk, Valid, writemiss, readmiss, ireadmiss, MemtoRegD, MemWriteD,
+		input rst,clk, abort, Valid, writemiss, readmiss, ireadmiss, MemtoRegD, MemWriteD,
 		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD, ForwardBD, 
 		output reg [1:0] ForwardAE, ForwardBE);
 
@@ -48,9 +48,13 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		end
 	end
 	
-	always @(posedge ireadmiss)
+	always @(posedge ireadmiss, posedge abort)
 	begin
-		IMEM_STALLED <= 1;
+		// if we get an abort (branch mispredict), don't try to read missed cache instr
+		if(~abort)
+		begin
+			IMEM_STALLED <= 1;
+		end
 	end
 
 	// if we do a sw (always writethrough) then set the register
@@ -124,7 +128,7 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		read_inprog <= 0;
 	end
 
-	always @(posedge iReadReady)
+	always @(posedge iReadReady, posedge abort)
 	begin
 		IMEM_STALLED <= 0;
 		iread_inprog <=0;

@@ -62,13 +62,15 @@ module datapath (input CLK, RESET);
 
         // pc register and instruction memory
 	register #(32) PCreg( .D(PCprime), .Q(PCF), .En(StallF), .Clk(CLK), .Clr(RESET));
+	
+	assign abort = PCSrcD ^ predictionD;
 
 	icache instr_cache(.addy(PCF), .datareadmiss(idata),. readready(ireadready), 
-			   .Rst(RESET), .Clk(CLK),
+			   .Rst(RESET), .Clk(CLK), .abort(abort),
 			   .data(InstrF), .address(iaddy), .readmiss(ireadmiss));
 
-	inst_memory #(42) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
-				.abort(1'b0), .Clk(CLK), .Rst(RESET));
+	inst_memory #(128) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
+				.abort(abort), .Clk(CLK), .Rst(RESET));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
@@ -174,7 +176,7 @@ module datapath (input CLK, RESET);
 	hazard hazard_unit(	.RsE(RsE), .RtE(RtE), .RsD(InstrD[25:21]), .RtD(InstrD[20:16]), .WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .WriteRegW(WriteRegW), 
 				.RegWriteW(RegWriteW), .RegWriteM(RegWriteM), .MemtoRegM(MemtoRegM), .RegWriteE(RegWriteE), .MemtoRegE(MemtoRegE), .MemWriteM(MemWriteM),
 				.MemWriteE(MemWriteE), 
-				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .writemiss(memwritethru), .readmiss(readmiss), .ireadmiss(ireadmiss),
+				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss(memwritethru), .readmiss(readmiss), .ireadmiss(ireadmiss),
 				.MemWriteD(MemWriteD), .MemtoRegD(MemtoRegD), 
 				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .FlushW(FlushW), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
 				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .iReadReady(ireadready), .WriteReady(WriteReady));
