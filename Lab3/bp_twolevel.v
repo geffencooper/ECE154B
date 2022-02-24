@@ -48,8 +48,10 @@ module btbuff #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 	assign buff_offset_current = PC_current[6:2]; // lower 5 bits from fetch stage PC
 
 	// if there was a branch instruction, need to update the corresponding entry
-	always @(posedge Branch)
+	always @(posedge Clk)
 	begin
+		if(Branch)
+		begin
 		buff[buff_offset][72] <= 1; // make the entry valid
 		buff[buff_offset][71:40] <= PC; // set the PC corresponding to the branch
 		buff[buff_offset][39:8] <= PCBranch; // set the branch taken address
@@ -60,6 +62,7 @@ module btbuff #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 			11: buff[buff_offset][7:6] <= statein; // set the state bits
 		endcase
 	global_state <= {global_state[0],~BranchTaken};
+	end
 	end
 
 	// every time the current program counter changes, generate the next PC
@@ -139,9 +142,9 @@ module twolevel_bp #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
 		endcase
 
 		// output the new state bits
-		stateout <= bhtable[table_offset][global_state];
+		stateout = bhtable[table_offset][global_state];
 
-		global_state <= {global_state[0],~BranchTaken};
+		global_state = {global_state[0],~BranchTaken};
 
 	end 
 
