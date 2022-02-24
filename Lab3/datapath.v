@@ -56,7 +56,7 @@ module datapath (input CLK, RESET);
 
 	mux2 predictmux( .d0(PCInter), .d1(PCPredict), .s(btbhit), .y(PCInter2));
 
-	btbuff btbuffer(.PC_current(PCF), .PC(PCE), .PCBranch(PCBranchE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), 
+	btbuff_ btbuffer(.PC_current(PCF), .PC(PCE), .PCBranch(PCBranchE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), 
 		.statein(branchstate), .PCPredict(PCPredict), .prediction(predictionF), .btbhit(btbhit)); //PCPredict is output to the new mux
 
 
@@ -121,7 +121,7 @@ module datapath (input CLK, RESET);
 
 //-----------------EXECUTE----------------//
 
-	twolevel_bp ranch_predictor(.PC(PCE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), .stateout(branchstate));
+	bht_ ranch_predictor(.PC(PCE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), .stateout(branchstate));
 
 	// muxes for determining the destination register
 	mux2 #(5) regdest( .d0(RtE), .d1(RdE), .s(RegDstE), .y(prejumpWriteRegE));

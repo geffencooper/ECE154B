@@ -46,12 +46,15 @@ module btbuff_ #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 	assign buff_offset_current = PC_current[6:2]; // lower 5 bits from fetch stage PC
 
 	// if there was a branch instruction, need to update the corresponding entry
-	always @(posedge Branch)
+	always @(posedge Clk)
 	begin
+		if (Branch)
+		begin
 		buff[buff_offset][66] <= 1; // make the entry valid
 		buff[buff_offset][65:34] <= PC; // set the PC corresponding to the branch
 		buff[buff_offset][33:2] <= PCBranch; // set the branch taken address
 		buff[buff_offset][1:0] <= statein; // set the state bits
+		end
 	end
 
 	// every time the current program counter changes, generate the next PC
@@ -93,21 +96,20 @@ module bht_ #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
 	output reg [1:0] stateout // 2 bit predictor bits (current pediciton state)
 );
 
-	// table of 2 bit states for each (of 128) local branch
-	reg [1:0] bhtable[0:ROWS-1];
-
-	// idx into the table is the lower 7 bits of the program counter
-	wire [6:0] table_offset;
-
-	// since byte addressable, ignore lower 2 bits because always 0
-	assign table_offset = PC[8:2]; //seven bits to select one of the 2^7 table entries
-
-	parameter TAKEN  = 2'b00, // strongly taken
+parameter TAKEN  = 2'b00, // strongly taken
 	taken = 2'b01, // weakly taken
 	nottaken = 2'b10, // weakly not taken
 	NOTTAKEN = 2'b11; // stringly not taken
 
-	integer i;
+
+	reg [7:0] bhtable[0:ROWS-1]; 
+
+	wire [6:0] table_offset;
+
+	// since byte addressable, ignore lower 2 bits because always 0
+	assign table_offset = PC[8:2]; //seven bits to select one of the 2^7 table entries
+ 
+	integer i, j;
 	// reset the branch history table
 	always @(posedge Rst)  
 	begin		
@@ -119,19 +121,20 @@ module bht_ #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
 
 	end
 
-	// on a branch, update the state bits and send the update to the branch target buffer
 	always @(posedge Branch)
 	begin
 		// 'saturating counter' to implement states
 		case (bhtable[table_offset])
 			TAKEN : bhtable[table_offset] <= (~BranchTaken) ? (taken) : (TAKEN);
-			taken : bhtable[table_offset] <= (~BranchTaken) ? (nottaken) : (TAKEN);
-			nottaken : bhtable[table_offset] <= (~BranchTaken) ? (NOTTAKEN) : (taken);
+			taken : bhtable[table_offset]  <= (~BranchTaken) ? (nottaken) : (TAKEN);
+			nottaken : bhtable[table_offset]  <= (~BranchTaken) ? (NOTTAKEN) : (taken);
 			NOTTAKEN : bhtable[table_offset] <= (~BranchTaken) ? (NOTTAKEN) : (nottaken);
 		endcase
 
 		// output the new state bits
-		stateout <= bhtable[table_offset];
+		stateout = bhtable[table_offset];
+
+
 	end 
 
 endmodule
