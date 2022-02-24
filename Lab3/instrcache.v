@@ -38,7 +38,7 @@ reg [2:0] state;
 	assign data1 = way1[4095:0];
 
 	assign eq1 = (tag1==tag);
-	assign hit1 = (v1&&eq1)||Rst;
+	assign hit1 = (v1&&eq1);//||Rst;
 
 	bufferz buf1(.enable(hit1), .datasrc(data1), .databus(databus1));
 	
@@ -61,22 +61,26 @@ reg [2:0] state;
 		addymem <= 32'b0;
 		address <= 32'b0;
 		way1 <= 4120'b0; //update number of bits
-
+		abortion <= 0;
 	end
 	
 
 
-	always @(posedge readready, posedge Clk, hit1, addy, datai, posedge abort) //added posedge write_word
+	always @(posedge readready, posedge Clk, hit1, addy, datai, posedge abort,negedge Rst) //added posedge write_word
 	begin
    		case(state)
 		INIT: begin
-			abortion <= abort;
+			if (~Rst)
+			begin
+				abortion <= abort;
+			end
 			if (readready || abortion)
 			begin
 				readmiss<=0;
 			end
 			if (~Rst)
 			begin
+				$display("addy: %d, clock: %d, hit1: %d, abort: %d",addy,Clk,hit1, abort);
 				//write_word <= write_data; //if you want to write, store that data and address in case of a miss
 				address <= addy;
 				if (hit1)
@@ -86,6 +90,7 @@ reg [2:0] state;
 				end
 				else if (~hit1&&~abortion)
 				begin
+					$display("--addy: %d, clock: %d, hit1: %d",addy,Clk,hit1);
 					readmiss <= 1;
 					addymem <= address;
 					state <= READ;
