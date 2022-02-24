@@ -80,7 +80,7 @@ reg [2:0] state;
 			end
 			if (~Rst)
 			begin
-				$display("addy: %d, clock: %d, hit1: %d, abort: %d",addy,Clk,hit1, abort);
+				//$display("addy: %d, clock: %d, hit1: %d, abort: %d",addy,Clk,hit1, abort);
 				//write_word <= write_data; //if you want to write, store that data and address in case of a miss
 				address <= addy;
 				if (hit1)
@@ -90,7 +90,7 @@ reg [2:0] state;
 				end
 				else if (~hit1&&~abortion)
 				begin
-					$display("--addy: %d, clock: %d, hit1: %d",addy,Clk,hit1);
+					//$display("--addy: %d, clock: %d, hit1: %d",addy,Clk,hit1);
 					readmiss <= 1;
 					addymem <= address;
 					state <= READ;
