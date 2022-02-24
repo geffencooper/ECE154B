@@ -34,7 +34,7 @@ module btbuff #(parameter ROWS = 32'h00000020)  //32 entries , 2^5
 
 		for (i=0;i<ROWS;i=i+1)
 		begin
-			buff[i] <= {65'b0,8'b11}; //on a reset, default all to Strongly Not taken
+			buff[i] <= {1'b0,32'b1,32'b0,8'b11111111}; //on a reset, default all to Strongly Not taken
 		end
 
 	end
@@ -132,10 +132,10 @@ module twolevel_bp #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
 	begin
 		// 'saturating counter' to implement states
 		case (bhtable[table_offset][global_state])
-			TAKEN : bhtable[table_offset][global_state] <= (~Branch) ? (taken) : (TAKEN);
-			taken : bhtable[table_offset][global_state]  <= (~Branch) ? (nottaken) : (TAKEN);
-			nottaken : bhtable[table_offset][global_state]  <= (~Branch) ? (NOTTAKEN) : (taken);
-			NOTTAKEN : bhtable[table_offset][global_state]  <= (~Branch) ? (NOTTAKEN) : (nottaken);
+			TAKEN : bhtable[table_offset][global_state] <= (~BranchTaken) ? (taken) : (TAKEN);
+			taken : bhtable[table_offset][global_state]  <= (~BranchTaken) ? (nottaken) : (TAKEN);
+			nottaken : bhtable[table_offset][global_state]  <= (~BranchTaken) ? (NOTTAKEN) : (taken);
+			NOTTAKEN : bhtable[table_offset][global_state]  <= (~BranchTaken) ? (NOTTAKEN) : (nottaken);
 		endcase
 
 		// output the new state bits

@@ -124,10 +124,10 @@ module bht_ #(parameter ROWS = 32'h00000080) // 128 entries, 2^7
 	begin
 		// 'saturating counter' to implement states
 		case (bhtable[table_offset])
-			TAKEN : bhtable[table_offset] <= (~Branch) ? (taken) : (TAKEN);
-			taken : bhtable[table_offset] <= (~Branch) ? (nottaken) : (TAKEN);
-			nottaken : bhtable[table_offset] <= (~Branch) ? (NOTTAKEN) : (taken);
-			NOTTAKEN : bhtable[table_offset] <= (~Branch) ? (NOTTAKEN) : (nottaken);
+			TAKEN : bhtable[table_offset] <= (~BranchTaken) ? (taken) : (TAKEN);
+			taken : bhtable[table_offset] <= (~BranchTaken) ? (nottaken) : (TAKEN);
+			nottaken : bhtable[table_offset] <= (~BranchTaken) ? (NOTTAKEN) : (taken);
+			NOTTAKEN : bhtable[table_offset] <= (~BranchTaken) ? (NOTTAKEN) : (nottaken);
 		endcase
 
 		// output the new state bits

@@ -69,7 +69,7 @@ module datapath (input CLK, RESET);
 			   .Rst(RESET), .Clk(CLK), .abort(abort),
 			   .data(InstrF), .address(iaddy), .readmiss(ireadmiss));
 
-	inst_memory #(128) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
+	inst_memory #(33) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
 				.abort(abort), .Clk(CLK), .Rst(RESET));
 	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus4F));
 
