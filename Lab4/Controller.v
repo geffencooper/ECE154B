@@ -1,8 +1,7 @@
 module controller(input   [5:0] op, funct,
                   output        memtoreg, memwrite,
-		  output  [1:0] alusrc, out_select,  //out_select is our version of WBsrc 
-                  output        regdst, regwrite,
-		  output	start_mult, mult_sign,
+		  output  [1:0] alusrc,   //out_select is our version of WBsrc 
+                  output        out_select, regdst, regwrite,
                   output        jump,
                   output  [3:0] alucontrol);
 
@@ -10,8 +9,7 @@ module controller(input   [5:0] op, funct,
 	wire [1:0] aluop;
 
 	maindec md(op, funct, memtoreg, memwrite, alusrc,
-			regdst, regwrite, jump, aluop, out_select,
-			start_mult, mult_sign); 
+			regdst, regwrite, jump, aluop, out_select); 
 
 	aludec ad(funct, op, aluop, alucontrol);
 
@@ -22,37 +20,30 @@ module maindec(	input	[5:0] op, funct,
 		output  [1:0] alusrc, 
 		output	regdst, regwrite,
 		output	jump,
-		output	[1:0] aluop, out_select,
-		output	start_mult, mult_sign); 
+		output	[1:0] aluop,
+		output	out_select); 
 
-	reg [12:0] controls; 
+	reg [9:0] controls; 
 	
 	assign {regwrite, regdst, alusrc, memwrite,
 		memtoreg, jump, aluop,
-		out_select, start_mult, mult_sign} = controls; 
+		out_select} = controls; 
 
 	always @ * begin
 		case(op) //n for output_branch
-			6'b000000: case(funct)
-				6'b011000: controls <= 13'b0000000100011; //mult
-				6'b011001: controls <= 13'b0000000100010; //multu
-				6'b010000: controls <= 13'b1100000101000; //mfhi
-				6'b010010: controls <= 13'b1100000101100; //mflo
-				6'b000000: controls <= 13'b0; //usually means sll but we dont have it so just saying a nop
-				default: controls <= 13'b1100000100000; //Rtype (besides mult, multu)
-			endcase
-			6'b100011: controls <= 13'b1001010000000; //lw
-			6'b101011: controls <= 13'b0001100000000; //sw
-			6'b000100: controls <= 13'b0000000000000; //beq
-			6'b000101: controls <= 13'b0000000000000; //bne
-			6'b001000: controls <= 13'b1001000000000; //addi
-			6'b001100: controls <= 13'b1010000110000; //andi
-			6'b001101: controls <= 13'b1010000110000; //ori
-			6'b111100: controls <= 13'b1010000110000; //xori 
-			6'b000011: controls <= 13'b1000001000100; //jal
-			6'b001010: controls <= 13'b1001000110000; //slti
-			6'b001111: controls <= 13'b1011000000100; //lui
-			default: controls <= 13'b0000000000000;
+			6'b000000: controls <= 10'b1100000100; //Rtype
+			6'b100011: controls <= 10'b1001010000; //lw
+			6'b101011: controls <= 10'b0001100000; //sw
+			6'b000100: controls <= 10'b0000000000; //beq
+			6'b000101: controls <= 10'b0000000000; //bne
+			6'b001000: controls <= 10'b1001000000; //addi
+			6'b001100: controls <= 10'b1010000110; //andi
+			6'b001101: controls <= 10'b1010000110; //ori
+			6'b111100: controls <= 10'b1010000110; //xori 
+			6'b000010: controls <= 10'b1000001000; //j
+			6'b001010: controls <= 10'b1001000110; //slti
+			6'b001111: controls <= 10'b1011000000; //lui
+			default: controls <= 13'b0000000000;
 		endcase
 	end
 			
