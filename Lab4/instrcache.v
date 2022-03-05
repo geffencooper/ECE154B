@@ -40,25 +40,22 @@ reg [2:0] state;
 
 	reg [4119:0] way1; //update number of bits
 	
-	wire v1, eq1, hit1, v2,eq2,hit2;
-	wire [4095:0] data1, databus1,data2,databus2;
+	wire v1, eq1, hit1,eq2,hit2;
+	wire [4095:0] data1, databus1,databus2;
 	wire [255:0] middata1,middata2;
-	wire [17:0] tag1,tag2;
+	wire [17:0] tag1;
 
 	assign v1 = way1[4119];
 	assign tag1 = way1[4118:4096];
 	assign data1 = way1[4095:0];
-	assign v2 = way2[4119];
-	assign tag2 = way2[4118:4096];
-	assign data2 = way2[4095:0];
 
 	assign eq1 = (tag1==tagin1);
 	assign hit1 = (v1&&eq1);//||Rst;
-	assign eq2 = (tag2==tagin2);
-	assign hit2 = (v2&&eq2);//||Rst;
+	assign eq2 = (tag1==tagin2);
+	assign hit2 = (v1&&eq2);//||Rst;
 
 	bufferz buf1(.enable(hit1), .datasrc(data1), .databus(databus1));
-	bufferz buf2(.enable(hit2), .datasrc(data2), .databus(databus2));
+	bufferz buf2(.enable(hit2), .datasrc(data1), .databus(databus2));
 	
 	mux16 mux16s1(.d0(databus1[255:0]), .d1(databus1[511:256]), .d2(databus1[767:512]), .d3(databus1[1023:768]), 
 		     .d4(databus1[1279:1024]), .d5(databus1[1535:1280]), .d6(databus1[1791:1536]), .d7(databus1[2047:1792]), 
@@ -118,11 +115,11 @@ reg [2:0] state;
 				address2 <= addy2;
 				if (hit1)
 				begin
-					data1 <= datai1;
+					instr1 <= datai1;
 					readmiss <= 0;
 					if (hit2)
 					begin
-						data2 <= datai2;
+						instr2 <= datai2;
 						readmiss <= 0;
 					end
 				end
@@ -141,7 +138,7 @@ reg [2:0] state;
 				way1[4095:0] = datareadmiss;
 				way1[4118:4096] = tagin1;
 				way1[4119] = 1;
-				data1 = datai1;
+				instr1 = datai1;
 				readmiss = 0;
 				state = INIT;
 			end
