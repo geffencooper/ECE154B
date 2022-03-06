@@ -14,8 +14,8 @@ module DEReg
     output reg [1:0] ALUSrcE,
     input RegDstD,
     output reg RegDstE,
-    input [1:0] OutSelectD,
-    output reg [1:0] OutSelectE,
+    input OutSelectD,
+    output reg OutSelectE,
     input jumpD,
     output reg jumpE,
     input [31:0] PCD,
@@ -64,7 +64,7 @@ begin
     	ALUControlE <= 4'h0;
    	ALUSrcE <= 2'h0;
    	RegDstE <= 0;
-    	OutSelectE <= 2'h0;
+    	OutSelectE <= 0;
     	jumpE <= 0;
 	PCPlus4E <= 32'h0;
 

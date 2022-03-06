@@ -1,14 +1,23 @@
 module datapath (input CLK, RESET);
 
 	// fetch and decode wires
-	wire [31:0] InstrF, PCPlus8F, PCBranchD, PCInter, PCJump, PCprime, PCF, InstrD, PCPlus8D;
-	wire PCSrcD, jumpD, StallF, FlushD, StallD, StallE, StallM;
-	wire [31:0] liljump, PCInter2, PCPredict;
-	wire ireadmiss, ireadready;
-	wire [31:0] iaddy;
-	wire [4095:0] idata;
-	wire predictionF;
-	wire [1:0] branchstate;
+	wire [31:0] InstrF1, PCPlus8F1, PCBranchD1, PCInter1, PCJump1, PCprime1, PCF1, InstrD1, PCPlus8D1;
+	wire PCSrcD1, jumpD1, StallF1, FlushD1, StallD1, StallE1, StallM1;
+	wire [31:0] liljump1, PCInter21, PCPredict1;
+	wire ireadmiss1, ireadready1;
+	wire [31:0] iaddy1;
+	wire [4095:0] idata1;
+	wire predictionF1;
+	wire [1:0] branchstate1;
+
+	wire [31:0] InstrF2, PCPlus8F2, PCBranchD2, PCInter2, PCJump2, PCprime2, PCF2, InstrD2, PCPlus8D2;
+	wire PCSrcD2, jumpD2, StallF2, FlushD2, StallD2, StallE2, StallM2;
+	wire [31:0] liljump2, PCInter22, PCPredict2;
+	wire ireadmiss2, ireadready2;
+	wire [31:0] iaddy2;
+	wire [4095:0] idata2;
+	wire predictionF2;
+	wire [1:0] branchstate2;
 	
 	// decode and execute wires 1
 	wire MemtoRegD1, MemWriteD1, RegDstD1, RegWriteD1;
@@ -65,52 +74,90 @@ module datapath (input CLK, RESET);
 	wire [31:0] SrcAE2, SrcBE2, WriteDataE2, ALUOutE2, WriteDataM2, PCPlus8E2, PCPlus8M2, PCPlus8W2;
 	wire [31:0] ExecuteOutE2;
 
-	// memory and writeback wires
-	wire MemtoRegM, MemWriteM, RegWriteM;
-	wire [31:0] ReadDataM, ExecuteOutW;
+	// memory and writeback wires 1
+	wire MemtoRegM1, MemWriteM1, RegWriteM1;
+	wire [31:0] ReadDataM1, ExecuteOutW1;
 
-	wire MemtoRegW, RegWriteW;
-	wire FlushW;
-	wire [31:0] ReadDataW;
+	wire MemtoRegW1, RegWriteW1;
+	wire FlushW1;
+	wire [31:0] ReadDataW1;
 
-	wire [31:0] addymem, datawrite;
-	wire [127:0] datareadmiss;
-	wire ReadReady, WriteReady, readmiss, memwritethru;
+	wire [31:0] addymem1, datawrite1;
+	wire [127:0] datareadmiss1;
+	wire ReadReady1, WriteReady1, readmiss1, memwritethru1;
+
+	// memory and writeback wires 2
+	wire MemtoRegM2, MemWriteM2, RegWriteM2;
+	wire [31:0] ReadDataM2, ExecuteOutW2;
+
+	wire MemtoRegW2, RegWriteW2;
+	wire FlushW2;
+	wire [31:0] ReadDataW2;
+
+	wire [31:0] addymem2, datawrite2;
+	wire [127:0] datareadmiss2;
+	wire ReadReady2, WriteReady2, readmiss2, memwritethru2;
 
 //-----------------FETCH----------------//
 	// PC Selection
-	mux2 branchmux( .d0(PCInter2) , .d1(PCBranchD), .s((PCSrcD ^ predictionD)), .y(PCprime));
-	mux2 jumpmux( .d0(PCPlus8F), .d1(PCJump), .s(jumpD), .y(PCInter));
+	mux2 branchmux1( .d0(PCInter21) , .d1(PCBranchD1), .s((PCSrcD1 ^ predictionD1)), .y(PCprime1));
+	mux2 jumpmux1( .d0(PCPlus8F1), .d1(PCJump1), .s(jumpD1), .y(PCInter1));
 
-	mux2 predictmux( .d0(PCInter), .d1(PCPredict), .s(btbhit), .y(PCInter2));
+	mux2 predictmux1( .d0(PCInter1), .d1(PCPredict1), .s(btbhit1), .y(PCInter21));
 
-	btbuff_ btbuffer(.PC_current(PCF), .PC(PCE), .PCBranch(PCBranchE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), 
-		.statein(branchstate), .PCPredict(PCPredict), .prediction(predictionF), .btbhit(btbhit)); //PCPredict is output to the new mux
+	btbuff_ btbuffer1(.PC_current(PCF1), .PC(PCE1), .PCBranch(PCBranchE1), .Branch(isBranchE1), .BranchTaken(PCSrcE1), .Clk(CLK), .Rst(RESET), 
+		.statein(branchstate1), .PCPredict(PCPredict1), .prediction(predictionF1), .btbhit(btbhit1)); //PCPredict is output to the new mux
 
 
         // pc register and instruction memory
-	register #(32) PCreg( .D(PCprime), .Q(PCF), .En(StallF), .Clk(CLK), .Clr(RESET));
+	register #(32) PCreg1( .D(PCprime1), .Q(PCF1), .En(StallF1), .Clk(CLK), .Clr(RESET));
 	
-	assign abort = PCSrcD ^ predictionD;
+	assign abort = PCSrcD1 ^ predictionD1;
 
-	icache instr_cache(.addy(PCF), .datareadmiss(idata),. readready(ireadready), 
+	icache instr_cache(.addy1(PCF1), .datareadmiss(idata1),. readready(ireadready1), 
 			   .Rst(RESET), .Clk(CLK), .abort(abort),
-			   .data(InstrF), .address(iaddy), .readmiss(ireadmiss));
+			   .instr1(InstrF1), .address1(iaddy1), .readmiss(ireadmiss1),
+			   .addy2(PCF2), .instr2(InstrF2));
 
-	inst_memory #(33) imem( .Address(iaddy), .Read_data(idata), .ReadReady(ireadready), .ReadMiss(ireadmiss), 
+	inst_memory #(33) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
 				.abort(abort), .Clk(CLK), .Rst(RESET));
-	adder plus4( .a(PCF), .b(32'b100), .y(PCPlus8F));
+
+
+	adder plus41( .a(PCF1), .b(32'b100), .y(PCPlus8F1));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD = jumpD || (PCSrcD^predictionD);
+	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1);
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
-	FDReg fdreg( .InstrF(InstrF), .InstrD(InstrD), .PCPlus4F(PCPlus8F), .PCPlus4D(PCPlus8D), .PCF(PCF), .PCD(PCD), 
-			.predictionF(predictionF), .predictionD(predictionD), .En(StallD), .Clk(CLK), .Clr(FlushD || RESET));
+	FDReg fdreg1( .InstrF(InstrF1), .InstrD(InstrD1), .PCPlus4F(PCPlus8F1), .PCPlus4D(PCPlus8D1), .PCF(PCF1), .PCD(PCD1), 
+			.predictionF(predictionF1), .predictionD(predictionD1), .En(StallD1), .Clk(CLK), .Clr(FlushD1 || RESET));
 	
         //jump target addy
-	shftr jumpshift( .a({6'b0,InstrD[25:0]}), .y(liljump));
-	assign PCJump = {PCPlus8F[31:28],liljump[27:0]};
+	shftr jumpshift1( .a({6'b0,InstrD1[25:0]}), .y(liljump1));
+	assign PCJump1 = {PCPlus8F1[31:28],liljump1[27:0]};
+
+
+	// PC Selection
+	mux2 branchmux2( .d0(PCInter22) , .d1(PCBranchD2), .s((PCSrcD2 ^ predictionD2)), .y(PCprime2));
+	mux2 jumpmux2( .d0(PCPlus8F2), .d1(PCJump2), .s(jumpD2), .y(PCInter2));
+
+	mux2 predictmux2( .d0(PCInter2), .d1(PCPredict2), .s(btbhit2), .y(PCInter22));
+
+	
+	assign abort2 = PCSrcD2 ^ predictionD2;
+
+	adder plus42( .a(PCF2), .b(32'b100), .y(PCPlus8F2));
+
+        // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
+	assign FlushD2 = jumpD2 || (PCSrcD2^predictionD2);
+
+	// Fetch-Decode pipeline register, clear on a flush or reset
+	FDReg fdreg2( .InstrF(InstrF2), .InstrD(InstrD2), .PCPlus4F(PCPlus8F2), .PCPlus4D(PCPlus8D2), .PCF(PCF2), .PCD(PCD2), 
+			.predictionF(predictionF2), .predictionD(predictionD2), .En(StallD2), .Clk(CLK), .Clr(FlushD2 || RESET));
+	
+        //jump target addy
+	shftr jumpshift2( .a({6'b0,InstrD2[25:0]}), .y(liljump2));
+	assign PCJump2 = {PCPlus8F2[31:28],liljump2[27:0]};
 
 //-----------------DECODE----------------//
 	
@@ -173,62 +220,96 @@ module datapath (input CLK, RESET);
 
 //-----------------EXECUTE----------------//
 
-	bht_ ranch_predictor(.PC(PCE), .Branch(isBranchE), .BranchTaken(PCSrcE), .Clk(CLK), .Rst(RESET), .stateout(branchstate));
+	bht_ ranch_predictor(.PC(PCE1), .Branch(isBranchE1), .BranchTaken(PCSrcE1), .Clk(CLK), .Rst(RESET), .stateout(branchstate1));
 
 	// muxes for determining the destination register
-	mux2 #(5) regdest( .d0(RtE), .d1(RdE), .s(RegDstE), .y(WriteRegE));
+	mux2 #(5) regdest1( .d0(RtE1), .d1(RdE1), .s(RegDstE1), .y(WriteRegE1));
+
+	mux2 #(5) regdest2( .d0(RtE1), .d1(RdE2), .s(RegDstE2), .y(WriteRegE2));
 	//mux2 #(5) jregdest( .d0(prejumpWriteRegE), .d1(5'b11111), .s(jumpE), .y(WriteRegE)); //for jal, set writereg to $ra (31)
 
 	// muxes for forwarding from memory and writeback stages
-	mux3 fwda ( .d0(RD1E), .d1(ResultW), .d2(ExecuteOutM), .s(ForwardAE), .y(SrcAE));
-	mux3 fwdb ( .d0(RD2E), .d1(ResultW), .d2(ExecuteOutM), .s(ForwardBE), .y(WriteDataE));
+	mux3 fwda ( .d0(RD1E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardAE1), .y(SrcAE1));
+	mux3 fwdb ( .d0(RD2E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardBE1), .y(WriteDataE1));
+
+	//mux3 fwda ( .d0(RD1E), .d1(ResultW), .d2(ExecuteOutM), .s(ForwardAE), .y(SrcAE));
+	//mux3 fwdb ( .d0(RD2E), .d1(ResultW), .d2(ExecuteOutM), .s(ForwardBE), .y(WriteDataE));
 
 	// alu src mux for immediate portion
-	mux3 srcbmux ( .d0(WriteDataE), .d1(SEimmE), .d2(ZEimmE), .s(ALUSrcE), .y(SrcBE));
+	mux3 srcbmux1 ( .d0(WriteDataE1), .d1(SEimmE1), .d2(ZEimmE1), .s(ALUSrcE1), .y(SrcBE1));
+
+	mux3 srcbmux2 ( .d0(WriteDataE2), .d1(SEimmE2), .d2(ZEimmE2), .s(ALUSrcE2), .y(SrcBE2));
 
 	// ALU
-	ALU alu( .InA(SrcAE), .InB(SrcBE), .ALUControl(ALUControlE), .out(ALUOutE));
+	ALU alu1( .InA(SrcAE1), .InB(SrcBE1), .ALUControl(ALUControlE1), .out(ALUOutE1));
+	ALU alu2( .InA(SrcAE2), .InB(SrcBE2), .ALUControl(ALUControlE2), .out(ALUOutE2));
 
 	// output of execute stage
-	mux2 outmux( .d0(ALUOutE), .d1(ZPimmE), .s(out_selectE), .y(ExecuteOutE));
+	mux2 outmux1( .d0(ALUOutE1), .d1(ZPimmE1), .s(out_selectE1), .y(ExecuteOutE1));
+	mux2 outmux2( .d0(ALUOutE2), .d1(ZPimmE2), .s(out_selectE2), .y(ExecuteOutE2));
 
 	// execute memory pipeline register
-	EMReg emreg(	.RegWriteE(RegWriteE), .RegWriteM(RegWriteM), .MemtoRegE(MemtoRegE), 
-			.MemtoRegM(MemtoRegM), .MemWriteE(MemWriteE), .MemWriteM(MemWriteM),
-			.ExecuteOutE(ExecuteOutE), .ExecuteOutM(ExecuteOutM), .WriteDataE(WriteDataE), .WriteDataM(WriteDataM), 
-			.WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .PCPlus4E(PCPlus8E), .PCPlus4M(PCPlus8M), .jumpE(jumpE), .jumpM(jumpM), .En(StallM), .Clk(CLK), .Clr(RESET));
+	EMReg emreg1(	.RegWriteE(RegWriteE1), .RegWriteM(RegWriteM1), .MemtoRegE(MemtoRegE1), 
+			.MemtoRegM(MemtoRegM1), .MemWriteE(MemWriteE1), .MemWriteM(MemWriteM1),
+			.ExecuteOutE(ExecuteOutE1), .ExecuteOutM(ExecuteOutM1), .WriteDataE(WriteDataE1), .WriteDataM(WriteDataM1), 
+			.WriteRegE(WriteRegE1), .WriteRegM(WriteRegM1), .PCPlus4E(PCPlus8E1), .PCPlus4M(PCPlus8M1), .jumpE(jumpE1), 
+			.jumpM(jumpM1), .En(StallM1), .Clk(CLK), .Clr(RESET));
+
+	EMReg emreg(	.RegWriteE(RegWriteE2), .RegWriteM(RegWriteM2), .MemtoRegE(MemtoRegE2), 
+			.MemtoRegM(MemtoRegM2), .MemWriteE(MemWriteE2), .MemWriteM(MemWriteM2),
+			.ExecuteOutE(ExecuteOutE2), .ExecuteOutM(ExecuteOutM2), .WriteDataE(WriteDataE2), .WriteDataM(WriteDataM2), 
+			.WriteRegE(WriteRegE2), .WriteRegM(WriteRegM2), .PCPlus4E(PCPlus8E2), .PCPlus4M(PCPlus8M2), .jumpE(jumpE2), 
+			.jumpM(jumpM2), .En(StallM2), .Clk(CLK), .Clr(RESET));
+
 
 //-----------------MEMORY----------------//
 	
 	// data memory
 
-	ezcache cash(.addy(ExecuteOutM), .write_data(WriteDataM), .datareadmiss(datareadmiss), .memwrite(MemWriteM), .memtoreg(MemtoRegM), .memtorege(MemtoRegE), .readready(ReadReady), .Rst(RESET), .Clk(CLK),
-			.writeready(WriteReady), .data(ReadDataM), .datawrite(datawrite), .address(addymem), .memwritethru(memwritethru), .readmiss(readmiss)); 	
+	ezcache cash(.addy1(ExecuteOutM1), .write_data1(WriteDataM1), .datareadmiss1(datareadmiss1), .memwrite1(MemWriteM1), .memtoreg1(MemtoRegM1), 
+			.memtorege1(MemtoRegE1), .readready1(ReadReady1), .Rst(RESET), .Clk(CLK),
+			.writeready1(WriteReady1), .dataout1(ReadDataM1), .datawrite1(datawrite1), 
+			.address1(addymem1), .memwritethru1(memwritethru1), .readmiss1(readmiss1), 
+			.addy2(ExecuteOutM2), .write_data2(WriteDataM2), .datareadmiss2(datareadmiss2), .memwrite2(MemWriteM2), .memtoreg2(MemtoRegM2), 
+			.memtorege2(MemtoRegE2), .readready2(ReadReady2), 
+			.writeready2(WriteReady2), .dataout2(ReadDataM2), .datawrite2(datawrite2), 
+			.address2(addymem2), .memwritethru2(memwritethru2), .readmiss2(readmiss2)); 	
 
-	data_memory dmem( .Address(addymem), .Read_data(datareadmiss), .MemWriteThrough(memwritethru), .Write_data(datawrite), .ReadMiss(readmiss), .ReadReady(ReadReady),
-			  .WriteReady(WriteReady), .Clk(CLK), .Rst(RESET));
+	data_memory dmem( .Address1(addymem1), .Read_data1(datareadmiss1), .MemWriteThrough1(memwritethru1), .Write_data1(datawrite1), .ReadMiss1(readmiss1),
+			.ReadReady1(ReadReady1), .WriteReady1(WriteReady1), .Clk(CLK), .Rst(RESET),
+			.Address2(addymem2), .Read_data2(datareadmiss2), .MemWriteThrough2(memwritethru2), .Write_data2(datawrite2), .ReadMiss2(readmiss2),
+			.ReadReady2(ReadReady2), .WriteReady2(WriteReady2));
 
 	// memory writeback pipeline register
-	MWReg mwreg(    .RegWriteM(RegWriteM), .RegWriteW(RegWriteW), .MemtoRegM(MemtoRegM), .MemtoRegW(MemtoRegW),
-			.ReadDataM(ReadDataM), .ReadDataW(ReadDataW), .ExecuteOutM(ExecuteOutM), .ExecuteOutW(ExecuteOutW), 
-			.WriteRegM(WriteRegM), .WriteRegW(WriteRegW), .jumpM(jumpM), .jumpW(jumpW), .PCPlus4M(PCPlus8M), .PCPlus4W(PCPlus8W), .Clk(CLK), .Clr(RESET || FlushW));	
+	MWReg mwreg1(    .RegWriteM(RegWriteM1), .RegWriteW(RegWriteW1), .MemtoRegM(MemtoRegM1), .MemtoRegW(MemtoRegW1),
+			.ReadDataM(ReadDataM1), .ReadDataW(ReadDataW1), .ExecuteOutM(ExecuteOutM1), .ExecuteOutW(ExecuteOutW1), 
+			.WriteRegM(WriteRegM1), .WriteRegW(WriteRegW1), .jumpM(jumpM1), .jumpW(jumpW1), .PCPlus4M(PCPlus8M1), 
+			.PCPlus4W(PCPlus8W1), .Clk(CLK), .Clr(RESET || FlushW1));	
+
+	MWReg mwreg2(    .RegWriteM(RegWriteM2), .RegWriteW(RegWriteW2), .MemtoRegM(MemtoRegM2), .MemtoRegW(MemtoRegW2),
+			.ReadDataM(ReadDataM2), .ReadDataW(ReadDataW2), .ExecuteOutM(ExecuteOutM2), .ExecuteOutW(ExecuteOutW2), 
+			.WriteRegM(WriteRegM2), .WriteRegW(WriteRegW2), .jumpM(jumpM2), .jumpW(jumpW2), .PCPlus4M(PCPlus8M2), 
+			.PCPlus4W(PCPlus8W2), .Clk(CLK), .Clr(RESET || FlushW2));	
 	
 //-----------------WRITEBACK----------------//
 
 	// muxes to determine the data to writeback to the register file
-	mux2 mem2reg( .d0(ExecuteOutW), .d1(ReadDataW), .s(MemtoRegW), .y(interResultW));
-	mux2 jalmux( .d0(interResultW), .d1(PCPlus8W), .s(jumpW), .y(ResultW));
+	mux2 mem2reg1( .d0(ExecuteOutW1), .d1(ReadDataW1), .s(MemtoRegW1), .y(interResultW1));
+	mux2 jalmux1( .d0(interResultW1), .d1(PCPlus8W1), .s(jumpW1), .y(ResultW1));
+
+	mux2 mem2reg2( .d0(ExecuteOutW2), .d1(ReadDataW2), .s(MemtoRegW2), .y(interResultW2));
+	mux2 jalmux2( .d0(interResultW2), .d1(PCPlus8W2), .s(jumpW2), .y(ResultW2));
 
 //---------------THORGAN HAZARD------------------//
 
 	// hazard unit
-	hazard hazard_unit(	.RsE(RsE), .RtE(RtE), .RsD(InstrD[25:21]), .RtD(InstrD[20:16]), .WriteRegE(WriteRegE), .WriteRegM(WriteRegM), .WriteRegW(WriteRegW), 
-				.RegWriteW(RegWriteW), .RegWriteM(RegWriteM), .MemtoRegM(MemtoRegM), .RegWriteE(RegWriteE), .MemtoRegE(MemtoRegE), .MemWriteM(MemWriteM),
-				.MemWriteE(MemWriteE), 
-				.op(InstrD[31:26]), .funct(InstrD[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss(memwritethru), .readmiss(readmiss), .ireadmiss(ireadmiss),
-				.MemWriteD(MemWriteD), .MemtoRegD(MemtoRegD), 
-				.StallF(StallF), .StallD(StallD), .StallE(StallE), .StallM(StallM), .FlushE(FlushE), .FlushW(FlushW), .ForwardAD(ForwardAD), .ForwardBD(ForwardBD), 
-				.ForwardAE(ForwardAE), .ForwardBE(ForwardBE), .Valid(Valid), .ReadReady(ReadReady), .iReadReady(ireadready), .WriteReady(WriteReady));
+	hazard hazard_unit(	.RsE(RsE1), .RtE(RtE1), .RsD(InstrD1[25:21]), .RtD(InstrD1[20:16]), .WriteRegE(WriteRegE1), .WriteRegM(WriteRegM1), .WriteRegW(WriteRegW1), 
+				.RegWriteW(RegWriteW1), .RegWriteM(RegWriteM1), .MemtoRegM(MemtoRegM1), .RegWriteE(RegWriteE1), .MemtoRegE(MemtoRegE1), .MemWriteM(MemWriteM1),
+				.MemWriteE(MemWriteE1), 
+				.op(InstrD1[31:26]), .funct(InstrD1[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss(memwritethru1), .readmiss(readmiss1), .ireadmiss(ireadmiss1),
+				.MemWriteD(MemWriteD1), .MemtoRegD(MemtoRegD1), 
+				.StallF(StallF1), .StallD(StallD1), .StallE(StallE1), .StallM(StallM1), .FlushE(FlushE1), .FlushW(FlushW1), .ForwardAD(ForwardAD1), .ForwardBD(ForwardBD1), 
+				.ForwardAE(ForwardAE1), .ForwardBE(ForwardBE1), .Valid(1'b0), .ReadReady(ReadReady1), .iReadReady(ireadready1), .WriteReady(WriteReady1));
 	
 
 endmodule
