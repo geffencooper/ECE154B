@@ -125,7 +125,7 @@ module datapath (input CLK, RESET);
 			   .instr1(InstrF1), .address1(iaddy1), .readmiss(ireadmiss1),
 			   .addy2(PCF2), .instr2(InstrF2));
 
-	inst_memory #(8) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
+	inst_memory #(15) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
 				.abort(abort), .Clk(CLK), .Rst(RESET));
 
 
@@ -234,8 +234,8 @@ module datapath (input CLK, RESET);
 	mux3 fwda1 ( .d0(RD1E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardAE1), .y(SrcAE1));
 	mux3 fwdb1 ( .d0(RD2E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardBE1), .y(WriteDataE1));
 
-	mux3 fwda2 ( .d0(RD1E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(ForwardAE2), .y(SrcAE2));
-	mux3 fwdb2 ( .d0(RD2E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(ForwardBE2), .y(WriteDataE2));
+	mux3 fwda2 ( .d0(RD1E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(2'b0), .y(SrcAE2));
+	mux3 fwdb2 ( .d0(RD2E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(2'b0), .y(WriteDataE2));
 
 	// alu src mux for immediate portion
 	mux3 srcbmux1 ( .d0(WriteDataE1), .d1(SEimmE1), .d2(ZEimmE1), .s(ALUSrcE1), .y(SrcBE1));

@@ -1,9 +1,11 @@
-module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW, 
-		input RegWriteW, RegWriteM, MemtoRegM, RegWriteE, MemtoRegE, MemWriteM, ReadReady, iReadReady, WriteReady, MemWriteE,
+module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, WriteRegW1, 
+		input [4:0] RsE2, RtE2, RsD2, RtD2, WriteRegE2, WriteRegM2, WriteRegW2,
+		input RegWriteW1, RegWriteM1, MemtoRegM1, RegWriteE1, MemtoRegE1, MemWriteM1, ReadReady, iReadReady, WriteReady, MemWriteE,
+		input RegWriteW2, RegWriteM2, MemtoRegM2, RegWriteE2, MemtoRegE2, MemWriteM2,
 		input [5:0] op, funct,
 		input rst,clk, abort, Valid, writemiss, readmiss, ireadmiss, MemtoRegD, MemWriteD,
-		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD, ForwardBD, 
-		output reg [1:0] ForwardAE, ForwardBE);
+		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD1, ForwardBD1, 
+		output reg [2:0] ForwardAE1, ForwardBE1, ForwardAE2, ForwardBE2);
 
 	reg lwstall, branchstall, multstall;
 	reg branch;
@@ -101,17 +103,113 @@ module hazard(	input [4:0] RsE, RtE, RsD, RtD, WriteRegE, WriteRegM, WriteRegW,
 		// when the source register in the execute stage matches the destination registers in the memory or writeback
 		// stages, then we need to forward the most up to date value (unless it is zero). Also make sure we are writing
 		// back to the register file (RegWrite) because instructions like sw don't overwrite register values. 
-		ForwardAE <= ((RsE !=0) && (RsE==WriteRegM) && RegWriteM) ? 2'b10 : (((RsE !=0) && (RsE==WriteRegW) && RegWriteW) ? 2'b01 : 2'b00);
-		ForwardBE <= ((RtE !=0) && (RtE==WriteRegM) && RegWriteM) ? 2'b10 : (((RtE !=0) && (RtE==WriteRegW) && RegWriteW) ? 2'b01 : 2'b00);
+		
+		if ((RsE1 !=0) && (RsE1==WriteRegM2) && RegWriteM2)  // if destination in Mem2
+		begin
+			ForwardAE1 <= 3'b100;
+		end
+		else if ((RsE1 !=0) && (RsE1==WriteRegM1) && RegWriteM1) // if destination in Mem1
+		begin
+			ForwardAE1 <= 3'b010;
+		end
+		else if ((((RsE1 !=0) && (RsE1==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		begin
+			ForwardAE1 <= 3'b011;
+		end
+		else if (((RsE1 !=0) && (RsE1==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		begin
+			FowardAE1 <= 3'b001;
+		end
+		else							// default
+		begin
+			ForwardAE1 <= 3'b000;
+		end
+
+
+		if ((RtE1 !=0) && (RtE1==WriteRegM2) && RegWriteM2)  // if destination in Mem2
+		begin
+			ForwardBE1 <= 3'b100;
+		end
+		else if ((RtE1 !=0) && (RtE1==WriteRegM1) && RegWriteM1) // if destination in Mem1
+		begin
+			ForwardBE1 <= 3'b010;
+		end
+		else if ((((RtE1 !=0) && (RtE1==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		begin
+			ForwardBE1 <= 3'b011;
+		end
+		else if (((RtE1 !=0) && (RtE1==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		begin
+			FowardBE1 <= 3'b001;
+		end
+		else							// default
+		begin
+			ForwardBE1 <= 3'b000;
+		end
 	
+		if ((RsE2 !=0) && (RsE2==WriteRegM2) && RegWriteM2)  // if destination in Mem2
+		begin
+			ForwardAE2 <= 3'b100;
+		end
+		else if ((RsE2 !=0) && (RsE2==WriteRegM1) && RegWriteM1) // if destination in Mem1
+		begin
+			ForwardAE2 <= 3'b010;
+		end
+		else if ((((RsE2 !=0) && (RsE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		begin
+			ForwardAE2 <= 3'b011;
+		end
+		else if (((RsE2 !=0) && (RsE2==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		begin
+			FowardAE2 <= 3'b001;
+		end
+		else							// default
+		begin
+			ForwardAE2 <= 3'b000;
+		end
+
+		if ((RtE2 !=0) && (RtE2==WriteRegM2) && RegWriteM2)  // if destination in Mem2
+		begin
+			ForwardBE2 <= 3'b100;
+		end
+		else if ((RtE2 !=0) && (RtE2==WriteRegM1) && RegWriteM1) // if destination in Mem1
+		begin
+			ForwardBE2 <= 3'b010;
+		end
+		else if ((((RtE2 !=0) && (RtE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		begin
+			ForwardBE2 <= 3'b011;
+		end
+		else if (((RtE2 !=0) && (RtE2==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		begin
+			FowardBE2 <= 3'b001;
+		end
+		else							// default
+		begin
+			ForwardBE2 <= 3'b000;
+		end
+
+		//ForwardAE1 <= ((RsE1 !=0) && (RsE1==WriteRegM1) && RegWriteM1) ? 2'b10 : (((RsE1 !=0) && (RsE1==WriteRegW1) && RegWriteW1) ? 2'b01 : 2'b00);
+		//ForwardBE1 <= ((RtE1 !=0) && (RtE1==WriteRegM1) && RegWriteM1) ? 2'b10 : (((RtE1 !=0) && (RtE1==WriteRegW1) && RegWriteW1) ? 2'b01 : 2'b00);
+	
+		//ForwardAE2 <= ((RsE2 !=0) && (RsE2==WriteRegM2) && RegWriteM2) ? 2'b10 : (((RsE2 !=0) && (RsE2==WriteRegW2) && RegWriteW2) ? 2'b01 : 2'b00);
+		//ForwardBE2 <= ((RtE2 !=0) && (RtE2==WriteRegM2) && RegWriteM2) ? 2'b10 : (((RtE2 !=0) && (RtE2==WriteRegW2) && RegWriteW2) ? 2'b01 : 2'b00);
+
+
 		//Decode Stage Forwarding
 		// when the source register in the decode stage is the same as the destination register in the memory stage (branch)
-		ForwardAD <= (RsD !=0) && (RsD == WriteRegM) && RegWriteM;
-		ForwardBD <= (RtD !=0) && (RtD == WriteRegM) && RegWriteM;
+		ForwardAD1 <= (RsD1 !=0) && (RsD1 == WriteRegM1) && RegWriteM1;
+		ForwardBD1 <= (RtD1 !=0) && (RtD1 == WriteRegM1) && RegWriteM1;
+
+		//ForwardAD2 <= (RsD2 !=0) && (RsD2 == WriteRegM2) && RegWriteM2;
+		//ForwardBD2 <= (RtD2 !=0) && (RtD2 == WriteRegM2) && RegWriteM2
 	
+		// r type stalls
+		rstall <= (RsE != 0) 
+
 		// lw Stalls, next instruction relies on destination register of lw
 		lwstall <= ((RsD==RtE) || (RtD==RtE)) && MemtoRegE;
-	
+ 
 		//branch stall, branch sources rely on instructions in execute (ALU) or in memory stage (lw)
 		branchstall <= (branch && RegWriteE && ((WriteRegE == RsD) || (WriteRegE == RtD))) ||
 					(branch && MemtoRegM && ((WriteRegM == RsD) || (WriteRegM == RtD)));
