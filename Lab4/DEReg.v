@@ -14,10 +14,6 @@ module DEReg
     output reg [1:0] ALUSrcE,
     input RegDstD,
     output reg RegDstE,
-    input StartMultD,
-    output reg StartMultE,
-    input MultSignD,
-    output reg MultSignE,
     input [1:0] OutSelectD,
     output reg [1:0] OutSelectE,
     input jumpD,
@@ -68,8 +64,6 @@ begin
     	ALUControlE <= 4'h0;
    	ALUSrcE <= 2'h0;
    	RegDstE <= 0;
-    	StartMultE <= 0;
-    	MultSignE <= 0;
     	OutSelectE <= 2'h0;
     	jumpE <= 0;
 	PCPlus4E <= 32'h0;
@@ -96,8 +90,6 @@ begin
         ALUControlE <= ALUControlD;
         ALUSrcE <= ALUSrcD;
         RegDstE <= RegDstD;
-        StartMultE <= StartMultD;
-        MultSignE <= MultSignD;
         OutSelectE <= OutSelectD;
         jumpE <= jumpD;
 	PCPlus4E <= PCPlus4D;
