@@ -1,7 +1,7 @@
 module ezcache 
 #(parameter ROWS = 32'h00000040) //64 rows
-(input [31:0] addy1, addy2, write_data, 
- input [127:0] datareadmiss, 
+(input [31:0] addy1, addy2, write_data1, write_data2, 
+ input [127:0] datareadmiss1,datareadmiss2, 
  input memwrite1, memtoreg1, memtorege1, readready1, readready2, Rst, Clk, writeready1,writeready2,
  input memwrite2, memtoreg2, memtorege2,
  output reg [31:0] datawrite1,datawrite2, address1, address2, //changed from addymem -> address (and in datapath)
@@ -14,7 +14,10 @@ reg [2:0] state;
 	parameter INIT  = 3'b000, // initial, wait for start signal
 	READ = 3'b001, // if memtoreg == 1, and a miss
 	WRITEhit = 3'b010, // if signed, first make numbers positive
-	WRITEmiss = 3'b011; // do the multiplication
+	WRITEmiss = 3'b011, // do the multiplication
+	READ2 = 3'b101, // if memtoreg == 1, and a miss
+	WRITEhit2 = 3'b110, // if signed, first make numbers positive
+	WRITEmiss2 = 3'b111; // do the multiplication
 
 	wire [21:0] tagin1,tagin2;
 	wire [5:0] set1,set2;
@@ -31,7 +34,7 @@ reg [2:0] state;
 	assign set1 = addy1[9:4];  //64 sets =  6 control bits to select right set
 	assign blk_offset1 = addy1[3:2]; //block size 4
 
-	assign tag2 = addy2[31:10];  //
+	assign tagin2 = addy2[31:10];  //
 	assign set2 = addy2[9:4];  //64 sets =  6 control bits to select right set
 	assign blk_offset2 = addy2[3:2]; //block size 4
 
@@ -47,20 +50,20 @@ reg [2:0] state;
 	wire [22:0] tag1, tag2;
 	wire [31:0] outmux;
 
-	assign v1 = way1[set][150];		//valid bit is first bit
-	assign tag1 = way1[set][149:128];	//22 bits for the tag
-	assign data1 = way1[set][127:0];	//128 bits for four words
+	assign v1 = way1[set1][150];		//valid bit is first bit
+	assign tag1 = way1[set1][149:128];	//22 bits for the tag
+	assign data1 = way1[set1][127:0];	//128 bits for four words
 
-	assign eq1 = (tag1==tag);	//if the tag is same as incoming tag
+	assign eq1 = (tag1==tagin1);	//if the tag is same as incoming tag
 	assign hit1 = v1&&eq1;		//its a hit if tags are equal and valid data in tag
 
 	buffer buf1(.enable(hit1), .datasrc(data1), .databus(databus1));  //only let data pass if its a hit
 	
-	assign v2 = way2[set][150];         //same logic as way 1
-	assign tag2 = way2[set][149:128];
-	assign data2 = way2[set][127:0];
+	assign v2 = way2[set2][150];         //same logic as way 1
+	assign tag2 = way2[set2][149:128];
+	assign data2 = way2[set2][127:0];
 
-	assign eq2 = (tag2==tag);
+	assign eq2 = (tag2==tagin2);
 	assign hit2 = v2&&eq2;
 
 	buffer buf2(.enable(hit2), .datasrc(data2), .databus(databus2));
@@ -72,20 +75,20 @@ reg [2:0] state;
 	wire [22:0] tag1_2, tag2_2;
 	wire [31:0] outmux_2;
 
-	assign v1_2 = way1_2[set][150];		//valid bit is first bit
-	assign tag1_2 = way1_2[set][149:128];	//22 bits for the tag
-	assign data1_2 = way1_2[set][127:0];	//128 bits for four words
+	assign v1_2 = way1[set2][150];		//valid bit is first bit
+	assign tag1_2 = way1[set2][149:128];	//22 bits for the tag
+	assign data1_2 = way1[set2][127:0];	//128 bits for four words
 
 	assign eq1_2 = (tag1_2==tagin2);	//if the tag is same as incoming tag
 	assign hit1_2 = v1_2&&eq1_2;		//its a hit if tags are equal and valid data in tag
 
 	buffer buf1_2(.enable(hit1_2), .datasrc(data1_2), .databus(databus1_2));  //only let data pass if its a hit
 	
-	assign v2_2 = way2_2[set][150];         //same logic as way 1
-	assign tag2_2 = way2_2[set][149:128];
-	assign data2_2 = way2_2[set][127:0];
+	assign v2_2 = way2[set2][150];         //same logic as way 1
+	assign tag2_2 = way2[set2][149:128];
+	assign data2_2 = way2[set2][127:0];
 
-	assign eq2_2 = (tag2_2==tag_2);
+	assign eq2_2 = (tag2_2==tagin2);
 	assign hit2_2 = v2_2&&eq2_2;
 
 	buffer buf2_2(.enable(hit2_2), .datasrc(data2_2), .databus(databus2_2));
@@ -120,7 +123,7 @@ reg [2:0] state;
 		addymem1 <= 32'b0;
 		address1 <= 32'b0;
 		addymem2 <= 32'b0;
-		adress2 <= 32'b0;
+		address2 <= 32'b0;
 		write_word1 <= 32'b0;
 		write_word2 <= 32'b0;
 		for (i=0;i<ROWS;i=i+1)
@@ -159,32 +162,32 @@ reg [2:0] state;
 
 				// process each case
 
-				if (memtoreg && hit_1)	//read hit, just read the data and update lru.
+				if (memtoreg1 && hit_1)	//read hit, just read the data and update lru.
 				begin			//since it is so simple, no need for another state
 					//data <= outmux;
-					readmiss <= 0;
-					memwritethru <= 0;
+					readmiss1 <= 0;
+					memwritethru1 <= 0;
 					if(hit1)
 					begin
-						lru[set] <= 1;
+						lru[set1] <= 1;
 					end
 					else
 					begin
-						lru[set] <=0;
+						lru[set1] <=0;
 					end
 				end
-				else if (memwrite && hit && ~readready) //write hit: tell memory to start writing the given value to the given address
+				else if (memwrite1 && hit1 && ~readready1) //write hit: tell memory to start writing the given value to the given address
 				begin			  //also changes to WRITEhit state
-					addymem <= address;
-					memwritethru <= 1;  //write control signal to memory
-					readmiss <=0;
+					addymem1 <= address1;
+					memwritethru1 <= 1;  //write control signal to memory
+					readmiss1 <=0;
 					state <= WRITEhit;
 				end
-				else if (memwrite && ~hit) //write miss: tell memory to start writing new word, as well as bring in new block to cache
+				else if (memwrite1 && ~hit1) //write miss: tell memory to start writing new word, as well as bring in new block to cache
 				begin			   //also changes to WRITEmiss state
-					addymem <= address;
-					memwritethru <= 1;
-					readmiss <=1;
+					addymem1 <= address1;
+					memwritethru1 <= 1;
+					readmiss1 <=1;
 					state <= WRITEmiss;
 				end
 				else if (memtoreg1 && ~hit_1) //read miss: let memory know it has to start reading, gives it address as well, 
@@ -195,71 +198,325 @@ reg [2:0] state;
 					state <= READ;
 				end
 			end
-		end
-		WRITEmiss: begin
-			if(readready == 1) //wait until readready signal before updating cache
+			else if ((memtoreg2||memwrite2) && (~(memtoreg1||memwrite1)||(memtoreg1 && hit_1)) && ~Rst) //for first indtr is not a mem guy or if frist instruction is a read hit
 			begin
-				if(lru[set])  // if way 2 was lru, replace way2
+				address1 <= addy1;
+				address2 <= addy2;
+				write_word1 <= write_data1; //write_word -> datawrite
+				datawrite1 <= write_data1;
+				write_word2 <= write_data2; //write_word -> datawrite
+				datawrite2 <= write_data2;
+
+
+				// process each case
+
+				if (memtoreg2 && hit_2)	//read hit, just read the data and update lru.
+				begin			//since it is so simple, no need for another state
+					//data <= outmux;
+					readmiss2 <= 0;
+					memwritethru2 <= 0;
+					if(hit1_2)
+					begin
+						lru[set2] <= 1;
+					end
+					else
+					begin
+						lru[set2] <=0;
+					end
+				end
+				else if (memwrite2 && hit2 && ~readready2) //write hit: tell memory to start writing the given value to the given address
+				begin			  //also changes to WRITEhit state
+					addymem2 <= address2;
+					memwritethru2 <= 1;  //write control signal to memory
+					readmiss2 <=0;
+					state <= WRITEhit2;
+				end
+				else if (memwrite2 && ~hit2) //write miss: tell memory to start writing new word, as well as bring in new block to cache
+				begin			   //also changes to WRITEmiss state
+					addymem2 <= address2;
+					memwritethru2 <= 1;
+					readmiss2 <=1;
+					state <= WRITEmiss2;
+				end
+				else if (memtoreg2 && ~hit_2) //read miss: let memory know it has to start reading, gives it address as well, 
+				begin			   // switches to READ state
+					readmiss2 <= 1; //read control signal to memory
+					memwritethru2 <= 0;
+					addymem2 <= address2;
+					state <= READ2;
+				end
+			end
+		end
+		WRITEmiss2: begin
+			if(readready2 == 1) //wait until the memory has valid data to read from
+			begin
+				if(lru[set2])  // if way 2 was lru, replace way2
 				begin
-					way2[set][127:0] = datareadmiss; //update whole block with memory block
-					way2[set][149:128] = tag; //update tag
-					case(blk_offset)//make sure the new word is put in correct spot in the block
-	        				2'b00: way2[set][31:0] = write_word;	//this also has to be done since cache is updated after the whole new block is in cache
-						2'b01: way2[set][63:32] = write_word;
-	        				2'b10: way2[set][95:64] = write_word;
-	        				2'b11: way2[set][127:96] = write_word;
+					way2[set2][127:0] = datareadmiss2; //update whole block with memory block
+					way2[set2][149:128] = tagin2; //update tag
+					case(blk_offset2)//make sure the new word is put in correct spot in the block
+	        				2'b00: way2[set2][31:0] = write_word2;	//this also has to be done since cache is updated after the whole new block is in cache
+						2'b01: way2[set2][63:32] = write_word2;
+	        				2'b10: way2[set2][95:64] = write_word2;
+	        				2'b11: way2[set2][127:96] = write_word2;
 					endcase
 					//way2[set][149:128] = tag;
-					way2[set][150] = 1;  //data now valid
-					lru[set] = 0; //way 1 now lru
+					way2[set2][150] = 1;  //data now valid
+					lru[set2] = 0; //way 1 now lru
 				end
 				else   // if way 1 was lru, replace way1
 				begin
-					way1[set][127:0] = datareadmiss; // get new data from mem
-					way1[set][149:128] = tag;  //update tag
-					case(blk_offset) //make sure the word is put in correct spot in the block
-	        				2'b00: way1[set][31:0] = write_word;
-						2'b01: way1[set][63:32] = write_word;
-	        				2'b10: way1[set][95:64] = write_word;
-	        				2'b11: way1[set][127:96] = write_word;
+					way1[set2][127:0] = datareadmiss2; // get new data from mem
+					way1[set2][149:128] = tagin2;  //update tag
+					case(blk_offset2) //make sure the word is put in correct spot in the block
+	        				2'b00: way1[set2][31:0] = write_word2;
+						2'b01: way1[set2][63:32] = write_word2;
+	        				2'b10: way1[set2][95:64] = write_word2;
+	        				2'b11: way1[set2][127:96] = write_word2;
 					endcase
 					//way1[set][149:128] = tag;
-					way1[set][150] = 1; //data now valid
-					lru[set] = 1; //way2 now lru
+					way1[set2][150] = 1; //data now valid
+					lru[set2] = 1; //way2 now lru
 				end				
-				memwritethru = 0;  //de assert the memwriththru so memory doenst write again
+				memwritethru2 = 0;  //de assert the memwriththru so memory doenst write again
 				state = INIT;  //change back to INIT state
+			end
+		end
+		WRITEhit2: begin
+			//write the new data into the block just brough in from mem
+			addymem2 = address2;
+			if(hit1_2 ==1) //if hit1 was 1, update way1
+			begin
+				case(blk_offset2) //make sure the word is put in correct spot in the block
+        				2'b00: way1[set2][31:0] = write_word2;
+					2'b01: way1[set2][63:32] = write_word2;
+        				2'b10: way1[set2][95:64] = write_word2;
+        				2'b11: way1[set2][127:96] = write_word2;
+				endcase
+				//way1[set][149:128] = tag;
+				//way1[set][150] = 1;  //make sure data valid
+				lru[set2] = 1; //way2 now lru
+			end
+			else if(hit2_2 ==1)  //if hit2, then replace word in way 2
+			begin
+				case(blk_offset2)//make sure the word is put in correct spot in the block
+        				2'b00: way2[set2][31:0] = write_word2;
+					2'b01: way2[set2][63:32] = write_word2;
+        				2'b10: way2[set2][95:64] = write_word2;
+        				2'b11: way2[set2][127:96] = write_word2;
+				endcase
+				//way2[set][149:128] = tag;
+				//way2[set][150] = 1;  //make sure it knows data alid
+				lru[set2] = 0; //way 1 now lru
+			end
+			memwritethru2 = 0;  //disbale memwritethru so the memory doesnt write again
+			state = INIT;  //go back to INIT
+		end
+		READ2: begin
+			if(readready2 == 1) //wait until the memory has valid data to read from
+			begin
+				if(lru[set2]) //if way 2 was lru replace way2
+				begin
+					way2[set2][127:0] = datareadmiss2;  //update bwith block from memory
+					way2[set2][149:128] = tagin2;	   //update tag
+					way2[set2][150] = 1;		   // data now valid
+					lru[set2] = 0;  			   // update lru
+				end
+				else	//if way1 was lru replace way1
+				begin
+					way1[set2][127:0] = datareadmiss2;
+					way1[set2][149:128] = tagin2;
+					way1[set2][150] = 1;
+					lru[set2] = 1; 
+				end
+				//data = outmux;  //read output is the output of the hit/miss identifier earlier
+				readmiss2 = 0;
+				state = INIT;  //go back to INIT
+			end
+		end
+		WRITEmiss: begin
+			if (memtoreg2 && ~hit_2) // second instruction is also a read miss, request 1 cycle later
+			begin			   
+				readmiss2 <= 1; 
+				memwritethru2 <= 0;
+				addymem2 <= address2;
+			end
+			else if(memtoreg2 && hit_2) // second instruction is a read hit
+			begin
+				readmiss2 <= 0;
+				memwritethru2 <= 0;
+				if(hit1_2)
+				begin
+					lru[set2] <= 1;
+				end
+				else
+				begin
+					lru[set2] <=0;
+				end
+				state = INIT;
+			end
+			else if (memwrite2 && ~hit_2) 
+			begin			   
+				addymem2 <= address2;
+				memwritethru2 <= 1;
+				readmiss2 <=1;
+			end
+			else if (memwrite2 && hit_2 && ~readready2) 
+				begin			  
+					addymem2 <= address2;
+					memwritethru2 <= 1;  //write control signal to memory
+					readmiss2 <=0;
+					//write the new data into the block just brough in from mem
+					if(hit1_2 ==1) //if hit1 was 1, update way1
+					begin
+						case(blk_offset2) //make sure the word is put in correct spot in the block
+		        				2'b00: way1[set2][31:0] = write_word2;
+							2'b01: way1[set2][63:32] = write_word2;
+		        				2'b10: way1[set2][95:64] = write_word2;
+		        				2'b11: way1[set2][127:96] = write_word2;
+						endcase
+						//way1[set][149:128] = tag;
+						//way1[set][150] = 1;  //make sure data valid
+						lru[set2] = 1; //way2 now lru
+					end
+					else if(hit2_2 ==1)  //if hit2, then replace word in way 2
+					begin
+						case(blk_offset2)//make sure the word is put in correct spot in the block
+		        				2'b00: way2[set2][31:0] = write_word2;
+							2'b01: way2[set2][63:32] = write_word2;
+		        				2'b10: way2[set2][95:64] = write_word2;
+		        				2'b11: way2[set2][127:96] = write_word2;
+						endcase
+						//way2[set][149:128] = tag;
+						//way2[set][150] = 1;  //make sure it knows data alid
+						lru[set2] = 0; //way 1 now lru
+					end
+					memwritethru2 = 0;  //disbale memwritethru so the memory doesnt write again
+					state = INIT;  //go back to INIT
+
+				end
+			if(readready2 == 1) //wait until the memory has valid data to read from
+			begin
+				if (~memwritethru2)
+				begin
+					if(lru[set2]) //if way 2 was lru replace way2
+					begin
+						way2[set2][127:0] = datareadmiss2;  //update bwith block from memory
+						way2[set2][149:128] = tagin2;	   //update tag
+						way2[set2][150] = 1;		   // data now valid
+						lru[set2] = 0;  			   // update lru
+					end
+					else	//if way1 was lru replace way1
+					begin
+						way1[set2][127:0] = datareadmiss2;
+						way1[set2][149:128] = tagin2;
+						way1[set2][150] = 1;
+						lru[set2] = 1; 
+					end
+					//data = outmux;  //read output is the output of the hit/miss identifier earlier
+					readmiss2 = 0;
+					state = INIT;  //go back to INIT
+				end
+				else if (memwritethru2)
+				begin
+					if(lru[set2])  // if way 2 was lru, replace way2
+					begin
+						way2[set2][127:0] = datareadmiss2; //update whole block with memory block
+						way2[set2][149:128] = tagin2; //update tag
+						case(blk_offset2)//make sure the new word is put in correct spot in the block
+		        				2'b00: way2[set2][31:0] = write_word2;	//this also has to be done since cache is updated after the whole new block is in cache
+							2'b01: way2[set2][63:32] = write_word2;
+		        				2'b10: way2[set2][95:64] = write_word2;
+		        				2'b11: way2[set2][127:96] = write_word2;
+						endcase
+						//way2[set][149:128] = tag;
+						way2[set2][150] = 1;  //data now valid
+						lru[set2] = 0; //way 1 now lru
+					end
+					else   // if way 1 was lru, replace way1
+					begin
+						way1[set2][127:0] = datareadmiss2; // get new data from mem
+						way1[set2][149:128] = tagin2;  //update tag
+						case(blk_offset2) //make sure the word is put in correct spot in the block
+		        				2'b00: way1[set2][31:0] = write_word2;
+							2'b01: way1[set2][63:32] = write_word2;
+		        				2'b10: way1[set2][95:64] = write_word2;
+		        				2'b11: way1[set2][127:96] = write_word2;
+						endcase
+						//way1[set][149:128] = tag;
+						way1[set2][150] = 1; //data now valid
+						lru[set2] = 1; //way2 now lru
+					end				
+					memwritethru2 = 0;  //de assert the memwriththru so memory doenst write again
+					state = INIT;  //change back to INIT state
+				end
+			end
+			if(readready1 == 1) //wait until readready signal before updating cache
+			begin
+				if(lru[set1])  // if way 2 was lru, replace way2
+				begin
+					way2[set1][127:0] = datareadmiss1; //update whole block with memory block
+					way2[set1][149:128] = tagin1; //update tag
+					case(blk_offset1)//make sure the new word is put in correct spot in the block
+	        				2'b00: way2[set1][31:0] = write_word1;	//this also has to be done since cache is updated after the whole new block is in cache
+						2'b01: way2[set1][63:32] = write_word1;
+	        				2'b10: way2[set1][95:64] = write_word1;
+	        				2'b11: way2[set1][127:96] = write_word1;
+					endcase
+					//way2[set][149:128] = tag;
+					way2[set1][150] = 1;  //data now valid
+					lru[set1] = 0; //way 1 now lru
+				end
+				else   // if way 1 was lru, replace way1
+				begin
+					way1[set1][127:0] = datareadmiss1; // get new data from mem
+					way1[set1][149:128] = tagin1;  //update tag
+					case(blk_offset1) //make sure the word is put in correct spot in the block
+	        				2'b00: way1[set1][31:0] = write_word1;
+						2'b01: way1[set1][63:32] = write_word1;
+	        				2'b10: way1[set1][95:64] = write_word1;
+	        				2'b11: way1[set1][127:96] = write_word1;
+					endcase
+					//way1[set][149:128] = tag;
+					way1[set1][150] = 1; //data now valid
+					lru[set1] = 1; //way2 now lru
+				end				
+				memwritethru1 = 0;  //de assert the memwriththru so memory doenst write again
+				if (~readmiss2)
+				begin
+					state = INIT;  //change back to INIT state
+				end
 			end
 		end	
 		WRITEhit: begin
 			//write the new data into the block just brough in from mem
-			addymem = address;
+			addymem1 = address1;
 			if(hit1 ==1) //if hit1 was 1, update way1
 			begin
-				case(blk_offset) //make sure the word is put in correct spot in the block
-        				2'b00: way1[set][31:0] = write_word;
-					2'b01: way1[set][63:32] = write_word;
-        				2'b10: way1[set][95:64] = write_word;
-        				2'b11: way1[set][127:96] = write_word;
+				case(blk_offset1) //make sure the word is put in correct spot in the block
+        				2'b00: way1[set1][31:0] = write_word1;
+					2'b01: way1[set1][63:32] = write_word1;
+        				2'b10: way1[set1][95:64] = write_word1;
+        				2'b11: way1[set1][127:96] = write_word1;
 				endcase
 				//way1[set][149:128] = tag;
 				//way1[set][150] = 1;  //make sure data valid
-				lru[set] = 1; //way2 now lru
+				lru[set1] = 1; //way2 now lru
 			end
 			else if(hit2 ==1)  //if hit2, then replace word in way 2
 			begin
-				case(blk_offset)//make sure the word is put in correct spot in the block
-        				2'b00: way2[set][31:0] = write_word;
-					2'b01: way2[set][63:32] = write_word;
-        				2'b10: way2[set][95:64] = write_word;
-        				2'b11: way2[set][127:96] = write_word;
+				case(blk_offset1)//make sure the word is put in correct spot in the block
+        				2'b00: way2[set1][31:0] = write_word1;
+					2'b01: way2[set1][63:32] = write_word1;
+        				2'b10: way2[set1][95:64] = write_word1;
+        				2'b11: way2[set1][127:96] = write_word1;
 				endcase
 				//way2[set][149:128] = tag;
 				//way2[set][150] = 1;  //make sure it knows data alid
-				lru[set] = 0; //way 1 now lru
+				lru[set1] = 0; //way 1 now lru
 			end
-			memwritethru = 0;  //disbale memwritethru so the memory doesnt write again
-			state = INIT;  //go back to INIT
+			memwritethru1 = 0;  //disbale memwritethru so the memory doesnt write again
+			state = READ;  //go back to INIT
 		end
 		READ: begin
 			if (memtoreg2 && ~hit_2) // second instruction is also a read miss, request 1 cycle later
@@ -280,7 +537,48 @@ reg [2:0] state;
 				begin
 					lru[set2] <=0;
 				end
+				state = INIT;
 			end
+			else if (memwrite2 && ~hit_2) 
+			begin			   
+				addymem2 <= address2;
+				memwritethru2 <= 1;
+				readmiss2 <=1;
+			end
+			else if (memwrite2 && hit_2 && ~readready2) 
+				begin			  
+					addymem2 <= address2;
+					memwritethru2 <= 1;  //write control signal to memory
+					readmiss2 <=0;
+					//write the new data into the block just brough in from mem
+					if(hit1_2 ==1) //if hit1 was 1, update way1
+					begin
+						case(blk_offset2) //make sure the word is put in correct spot in the block
+		        				2'b00: way1[set2][31:0] = write_word2;
+							2'b01: way1[set2][63:32] = write_word2;
+		        				2'b10: way1[set2][95:64] = write_word2;
+		        				2'b11: way1[set2][127:96] = write_word2;
+						endcase
+						//way1[set][149:128] = tag;
+						//way1[set][150] = 1;  //make sure data valid
+						lru[set2] = 1; //way2 now lru
+					end
+					else if(hit2_2 ==1)  //if hit2, then replace word in way 2
+					begin
+						case(blk_offset2)//make sure the word is put in correct spot in the block
+		        				2'b00: way2[set2][31:0] = write_word2;
+							2'b01: way2[set2][63:32] = write_word2;
+		        				2'b10: way2[set2][95:64] = write_word2;
+		        				2'b11: way2[set2][127:96] = write_word2;
+						endcase
+						//way2[set][149:128] = tag;
+						//way2[set][150] = 1;  //make sure it knows data alid
+						lru[set2] = 0; //way 1 now lru
+					end
+					memwritethru2 = 0;  //disbale memwritethru so the memory doesnt write again
+					state = INIT;  //go back to INIT
+
+				end
 			if(readready1 == 1) //wait until the memory has valid data to read from
 			begin
 				if(lru[set1]) //if way 2 was lru replace way2
@@ -299,27 +597,66 @@ reg [2:0] state;
 				end
 				//data = outmux;  //read output is the output of the hit/miss identifier earlier
 				readmiss1 = 0;
-				state = INIT;  //go back to INIT
+				if(~readmiss2) // if second readmiss is not happenign
+				begin
+					state = INIT;  //go back to INIT
+				end
 			end
 			if(readready2 == 1) //wait until the memory has valid data to read from
 			begin
-				if(lru[set2]) //if way 2 was lru replace way2
+				if (~memwritethru2)
 				begin
-					way2[set2][127:0] = datareadmiss2;  //update bwith block from memory
-					way2[set2][149:128] = tagin2;	   //update tag
-					way2[set2][150] = 1;		   // data now valid
-					lru[set2] = 0;  			   // update lru
+					if(lru[set2]) //if way 2 was lru replace way2
+					begin
+						way2[set2][127:0] = datareadmiss2;  //update bwith block from memory
+						way2[set2][149:128] = tagin2;	   //update tag
+						way2[set2][150] = 1;		   // data now valid
+						lru[set2] = 0;  			   // update lru
+					end
+					else	//if way1 was lru replace way1
+					begin
+						way1[set2][127:0] = datareadmiss2;
+						way1[set2][149:128] = tagin2;
+						way1[set2][150] = 1;
+						lru[set2] = 1; 
+					end
+					//data = outmux;  //read output is the output of the hit/miss identifier earlier
+					readmiss2 = 0;
+					state = INIT;  //go back to INIT
 				end
-				else	//if way1 was lru replace way1
+				else if (memwritethru2)
 				begin
-					way1[set2][127:0] = datareadmiss2;
-					way1[set2][149:128] = tagin2;
-					way1[set2][150] = 1;
-					lru[set2] = 1; 
+					if(lru[set2])  // if way 2 was lru, replace way2
+					begin
+						way2[set2][127:0] = datareadmiss2; //update whole block with memory block
+						way2[set2][149:128] = tagin2; //update tag
+						case(blk_offset2)//make sure the new word is put in correct spot in the block
+		        				2'b00: way2[set2][31:0] = write_word2;	//this also has to be done since cache is updated after the whole new block is in cache
+							2'b01: way2[set2][63:32] = write_word2;
+		        				2'b10: way2[set2][95:64] = write_word2;
+		        				2'b11: way2[set2][127:96] = write_word2;
+						endcase
+						//way2[set][149:128] = tag;
+						way2[set2][150] = 1;  //data now valid
+						lru[set2] = 0; //way 1 now lru
+					end
+					else   // if way 1 was lru, replace way1
+					begin
+						way1[set2][127:0] = datareadmiss2; // get new data from mem
+						way1[set2][149:128] = tagin2;  //update tag
+						case(blk_offset2) //make sure the word is put in correct spot in the block
+		        				2'b00: way1[set2][31:0] = write_word2;
+							2'b01: way1[set2][63:32] = write_word2;
+		        				2'b10: way1[set2][95:64] = write_word2;
+		        				2'b11: way1[set2][127:96] = write_word2;
+						endcase
+						//way1[set][149:128] = tag;
+						way1[set2][150] = 1; //data now valid
+						lru[set2] = 1; //way2 now lru
+					end				
+					memwritethru2 = 0;  //de assert the memwriththru so memory doenst write again
+					state = INIT;  //change back to INIT state
 				end
-				//data = outmux;  //read output is the output of the hit/miss identifier earlier
-				readmiss2 = 0;
-				state = INIT;  //go back to INIT
 			end
 			
 		end

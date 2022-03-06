@@ -24,7 +24,7 @@ reg [2:0] state;
 	wire [23:0] tagin2;
 
 	wire [7:0] blk_offset1;
-	wire [7:0] blk_offset2
+	wire [7:0] blk_offset2;
 
 	reg abortion;
 
@@ -82,14 +82,11 @@ reg [2:0] state;
 	begin
 		state <= INIT; //ad other things on reset
 		readmiss <= 0;
-	 	data1 <= 32'b0;
 		addymem1 <= 32'b0;
 		address1 <= 32'b0;
 		way1 <= 4120'b0; //update number of bits
-		data2 <= 32'b0;
 		addymem2 <= 32'b0;
 		address2 <= 32'b0;
-		way2 <= 4120'b0; //update number of bits
 		abortion <= 0;
 	end
 	
