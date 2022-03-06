@@ -88,6 +88,8 @@ reg [2:0] state;
 		addymem2 <= 32'b0;
 		address2 <= 32'b0;
 		abortion <= 0;
+		instr1 <= 32'b0;
+		instr2 <= 32'b0;
 	end
 	
 

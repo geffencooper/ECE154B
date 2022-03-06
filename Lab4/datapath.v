@@ -51,6 +51,7 @@ module datapath (input CLK, RESET);
 	wire isBranchD2, isBranchE2, predictionD2, PCSrcE2;
 	wire [31:0] PCE2, PCD2, PCBranchE2;
 
+	wire abort, abort2;
 
 	// execute and memory wires1
 	wire MemtoRegE1, MemWriteE1, RegDstE1, RegWriteE1, jumpE1, jumpM1, jumpW1;
@@ -107,7 +108,12 @@ module datapath (input CLK, RESET);
 
 	btbuff_ btbuffer1(.PC_current(PCF1), .PC(PCE1), .PCBranch(PCBranchE1), .Branch(isBranchE1), .BranchTaken(PCSrcE1), .Clk(CLK), .Rst(RESET), 
 		.statein(branchstate1), .PCPredict(PCPredict1), .prediction(predictionF1), .btbhit(btbhit1)); //PCPredict is output to the new mux
+	
+	// PC Selection
+	mux2 branchmux2( .d0(PCInter22) , .d1(PCBranchD2), .s((PCSrcD2 ^ predictionD2)), .y(PCprime2));
+	mux2 jumpmux2( .d0(PCPlus8F2), .d1(PCJump2), .s(jumpD2), .y(PCInter2));
 
+	mux2 predictmux2( .d0(PCInter2), .d1(PCPredict2), .s(btbhit2), .y(PCInter22));
 
         // pc register and instruction memory
 	register #(32) PCreg1( .D(PCprime1), .Q(PCF1), .En(StallF1), .Clk(CLK), .Clr(RESET));
@@ -119,11 +125,12 @@ module datapath (input CLK, RESET);
 			   .instr1(InstrF1), .address1(iaddy1), .readmiss(ireadmiss1),
 			   .addy2(PCF2), .instr2(InstrF2));
 
-	inst_memory #(33) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
+	inst_memory #(8) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
 				.abort(abort), .Clk(CLK), .Rst(RESET));
 
 
-	adder plus41( .a(PCF1), .b(32'b100), .y(PCPlus8F1));
+	adder plus8( .a(PCF1), .b(32'b1000), .y(PCPlus8F1));
+	adder plus4( .a(PCF1), .b(32'b100), .y(PCF2));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
 	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1);
@@ -136,28 +143,23 @@ module datapath (input CLK, RESET);
 	shftr jumpshift1( .a({6'b0,InstrD1[25:0]}), .y(liljump1));
 	assign PCJump1 = {PCPlus8F1[31:28],liljump1[27:0]};
 
-
-	// PC Selection
-	mux2 branchmux2( .d0(PCInter22) , .d1(PCBranchD2), .s((PCSrcD2 ^ predictionD2)), .y(PCprime2));
-	mux2 jumpmux2( .d0(PCPlus8F2), .d1(PCJump2), .s(jumpD2), .y(PCInter2));
-
-	mux2 predictmux2( .d0(PCInter2), .d1(PCPredict2), .s(btbhit2), .y(PCInter22));
-
-	
-	assign abort2 = PCSrcD2 ^ predictionD2;
-
-	adder plus42( .a(PCF2), .b(32'b100), .y(PCPlus8F2));
-
-        // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD2 = jumpD2 || (PCSrcD2^predictionD2);
-
 	// Fetch-Decode pipeline register, clear on a flush or reset
 	FDReg fdreg2( .InstrF(InstrF2), .InstrD(InstrD2), .PCPlus4F(PCPlus8F2), .PCPlus4D(PCPlus8D2), .PCF(PCF2), .PCD(PCD2), 
-			.predictionF(predictionF2), .predictionD(predictionD2), .En(StallD2), .Clk(CLK), .Clr(FlushD2 || RESET));
+			.predictionF(predictionF1), .predictionD(predictionD2), .En(StallD1), .Clk(CLK), .Clr(FlushD1 || RESET)); //FlushD2 and StallD2 and predictionF2
 	
         //jump target addy
 	shftr jumpshift2( .a({6'b0,InstrD2[25:0]}), .y(liljump2));
 	assign PCJump2 = {PCPlus8F2[31:28],liljump2[27:0]};
+
+	
+
+	
+	assign abort2 = PCSrcD2 ^ predictionD2;
+
+
+        // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
+	assign FlushD2 = jumpD2 || (PCSrcD2^predictionD2);
+
 
 //-----------------DECODE----------------//
 	
@@ -215,7 +217,7 @@ module datapath (input CLK, RESET);
 			.RegDstD(RegDstD2), .RegDstE(RegDstE2), .OutSelectD(out_selectD2), .OutSelectE(out_selectE2), .jumpD(jumpD2), .jumpE(jumpE2),
 			.Rd1D(RD1D2), .Rd2D(RD2D2), .Rd1E(RD1E2), .Rd2E(RD2E2), .RsD(InstrD2[25:21]), .RsE(RsE2), .RtD(InstrD2[20:16]), 
 			.RtE(RtE2), .RdD(InstrD2[15:11]), . RdE(RdE2), .SEimmD(SEimmD2), .SEimmE(SEimmE2), .ZEimmD(ZEimmD2), .ZEimmE(ZEimmE2),
-			.ZPimmD(ZPimmD2), .ZPimmE(ZPimmE2), .PCPlus4D(PCPlus8D2), .PCPlus4E(PCPlus8E2), .Clk(CLK), .Clr(FlushE2 || RESET), .En(StallE2),
+			.ZPimmD(ZPimmD2), .ZPimmE(ZPimmE2), .PCPlus4D(PCPlus8D2), .PCPlus4E(PCPlus8E2), .Clk(CLK), .Clr(FlushE1 || RESET), .En(StallE1), //FlushE2, StallE2
 			.PCE(PCE2), .PCD(PCD2), .isBranchE(isBranchE2), .isBranchD(isBranchD2), .PCSrcE(PCSrcE2), .PCSrcD(PCSrcD2), .PCBranchE(PCBranchE2), .PCBranchD(PCBranchD2));
 
 //-----------------EXECUTE----------------//
@@ -225,15 +227,15 @@ module datapath (input CLK, RESET);
 	// muxes for determining the destination register
 	mux2 #(5) regdest1( .d0(RtE1), .d1(RdE1), .s(RegDstE1), .y(WriteRegE1));
 
-	mux2 #(5) regdest2( .d0(RtE1), .d1(RdE2), .s(RegDstE2), .y(WriteRegE2));
+	mux2 #(5) regdest2( .d0(RtE2), .d1(RdE2), .s(RegDstE2), .y(WriteRegE2));
 	//mux2 #(5) jregdest( .d0(prejumpWriteRegE), .d1(5'b11111), .s(jumpE), .y(WriteRegE)); //for jal, set writereg to $ra (31)
 
 	// muxes for forwarding from memory and writeback stages
-	mux3 fwda ( .d0(RD1E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardAE1), .y(SrcAE1));
-	mux3 fwdb ( .d0(RD2E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardBE1), .y(WriteDataE1));
+	mux3 fwda1 ( .d0(RD1E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardAE1), .y(SrcAE1));
+	mux3 fwdb1 ( .d0(RD2E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardBE1), .y(WriteDataE1));
 
-	//mux3 fwda ( .d0(RD1E), .d1(ResultW), .d2(ExecuteOutM), .s(ForwardAE), .y(SrcAE));
-	//mux3 fwdb ( .d0(RD2E), .d1(ResultW), .d2(ExecuteOutM), .s(ForwardBE), .y(WriteDataE));
+	mux3 fwda2 ( .d0(RD1E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(ForwardAE2), .y(SrcAE2));
+	mux3 fwdb2 ( .d0(RD2E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(ForwardBE2), .y(WriteDataE2));
 
 	// alu src mux for immediate portion
 	mux3 srcbmux1 ( .d0(WriteDataE1), .d1(SEimmE1), .d2(ZEimmE1), .s(ALUSrcE1), .y(SrcBE1));
@@ -259,7 +261,7 @@ module datapath (input CLK, RESET);
 			.MemtoRegM(MemtoRegM2), .MemWriteE(MemWriteE2), .MemWriteM(MemWriteM2),
 			.ExecuteOutE(ExecuteOutE2), .ExecuteOutM(ExecuteOutM2), .WriteDataE(WriteDataE2), .WriteDataM(WriteDataM2), 
 			.WriteRegE(WriteRegE2), .WriteRegM(WriteRegM2), .PCPlus4E(PCPlus8E2), .PCPlus4M(PCPlus8M2), .jumpE(jumpE2), 
-			.jumpM(jumpM2), .En(StallM2), .Clk(CLK), .Clr(RESET));
+			.jumpM(jumpM2), .En(StallM1), .Clk(CLK), .Clr(RESET)); //StallM2
 
 
 //-----------------MEMORY----------------//
@@ -289,7 +291,7 @@ module datapath (input CLK, RESET);
 	MWReg mwreg2(    .RegWriteM(RegWriteM2), .RegWriteW(RegWriteW2), .MemtoRegM(MemtoRegM2), .MemtoRegW(MemtoRegW2),
 			.ReadDataM(ReadDataM2), .ReadDataW(ReadDataW2), .ExecuteOutM(ExecuteOutM2), .ExecuteOutW(ExecuteOutW2), 
 			.WriteRegM(WriteRegM2), .WriteRegW(WriteRegW2), .jumpM(jumpM2), .jumpW(jumpW2), .PCPlus4M(PCPlus8M2), 
-			.PCPlus4W(PCPlus8W2), .Clk(CLK), .Clr(RESET || FlushW2));	
+			.PCPlus4W(PCPlus8W2), .Clk(CLK), .Clr(RESET || FlushW1));	 //FlushW2
 	
 //-----------------WRITEBACK----------------//
 
