@@ -2,11 +2,11 @@ module ezcache
 #(parameter ROWS = 32'h00000040) //64 rows
 (input [31:0] addy1, addy2, write_data, 
  input [127:0] datareadmiss, 
- input memwrite1, memtoreg1, memtorege1, readready, Rst, Clk, writeready,
+ input memwrite1, memtoreg1, memtorege1, readready1, readready2, Rst, Clk, writeready1,writeready2,
  input memwrite2, memtoreg2, memtorege2,
- output reg [31:0] datawrite, address1, //changed from addymem -> address (and in datapath)
+ output reg [31:0] datawrite1,datawrite2, address1, address2, //changed from addymem -> address (and in datapath)
  output [31:0] dataout1, dataout2,
- output reg memwritethru, readmiss);
+ output reg memwritethru1, readmiss1, memwritethru2, readmiss2);
 
 reg [2:0] state;
 
@@ -23,7 +23,8 @@ reg [2:0] state;
 	wire hit_l;
 	wire hit_2;
 
-	reg [31:0] write_word; //stored in internal reg
+	reg [31:0] write_word1; //stored in internal reg
+	reg [31:0] write_word2; //stored in internal reg
 	reg [31:0] addymem1,addymem2;   //stored in internal reg
 	
 	assign tagin1 = addy1[31:10];  //
@@ -109,15 +110,19 @@ reg [2:0] state;
 	always @(posedge Rst)  //want everything set to zero on a reset
 	begin
 		state <= INIT; //ad other things on reset
-		memwritethru <= 0;
-		readmiss <= 0;
+		memwritethru1 <= 0;
+		readmiss1 <= 0;
+		memwritethru2 <= 0;
+		readmiss2 <= 0;
 	 	//data <= 32'b0;
-		datawrite <= 32'b0;
+		datawrite1 <= 32'b0;
+		datawrite2 <= 32'b0;
 		addymem1 <= 32'b0;
 		address1 <= 32'b0;
 		addymem2 <= 32'b0;
 		adress2 <= 32'b0;
-		write_word <= 32'b0;
+		write_word1 <= 32'b0;
+		write_word2 <= 32'b0;
 		for (i=0;i<ROWS;i=i+1)
 		begin
 			way1[i] <= 151'b0;
@@ -129,21 +134,31 @@ reg [2:0] state;
 	
 
 
-	always @(posedge memwrite1, posedge memwrite2, posedge readready, posedge writeready, posedge Clk) //added posedge write_word
+	always @(posedge memwrite1, posedge memwrite2, posedge readready1, posedge writeready1, posedge readready2, posedge writeready2, posedge Clk) //added posedge write_word
 	begin
    		case(state)
 		INIT: begin
-			if (readready)
+			if (readready1)
 			begin
-				readmiss<=0;  //resets a readmiss when going back to INIT
+				readmiss1<=0;  //resets a readmiss when going back to INIT
 			end
-			if ((memwrite || memtoreg) && ~Rst) //memwrite lets us know its a write to memory. memtoreg lets us know its a read
+			if (readready2)
+			begin
+				readmiss2<=0;  //resets a readmiss when going back to INIT
+			end
+			if ((memwrite1 || memtoreg1) && ~Rst) // first instr a mem op
 			begin
 				//write_word <= write_data; //if you want to write, store that data and address in case of a miss
 				address1 <= addy1;
 				address2 <= addy2;
-				write_word <= write_data; //write_word -> datawrite
-				datawrite <= write_data;
+				write_word1 <= write_data1; //write_word -> datawrite
+				datawrite1 <= write_data1;
+				write_word2 <= write_data2; //write_word -> datawrite
+				datawrite2 <= write_data2;
+
+
+				// process each case
+
 				if (memtoreg && hit_1)	//read hit, just read the data and update lru.
 				begin			//since it is so simple, no need for another state
 					//data <= outmux;
@@ -172,11 +187,11 @@ reg [2:0] state;
 					readmiss <=1;
 					state <= WRITEmiss;
 				end
-				else if (memtoreg && ~hit) //read miss: let memory know it has to start reading, gives it address as well, 
+				else if (memtoreg1 && ~hit_1) //read miss: let memory know it has to start reading, gives it address as well, 
 				begin			   // switches to READ state
-					readmiss <= 1; //read control signal to memory
-					memwritethru <= 0;
-					addymem <= address;
+					readmiss1 <= 1; //read control signal to memory
+					memwritethru1 <= 0;
+					addymem1 <= address1;
 					state <= READ;
 				end
 			end
@@ -247,26 +262,66 @@ reg [2:0] state;
 			state = INIT;  //go back to INIT
 		end
 		READ: begin
-			if(readready == 1) //wait until the memory has valid data to read from
+			if (memtoreg2 && ~hit_2) // second instruction is also a read miss, request 1 cycle later
+			begin			   
+				readmiss2 <= 1; 
+				memwritethru2 <= 0;
+				addymem2 <= address2;
+			end
+			else if(memtoreg2 && hit_2) // second instruction is a read hit
 			begin
-				if(lru[set]) //if way 2 was lru replace way2
+				readmiss2 <= 0;
+				memwritethru2 <= 0;
+				if(hit1_2)
 				begin
-					way2[set][127:0] = datareadmiss;  //update bwith block from memory
-					way2[set][149:128] = tag;	   //update tag
-					way2[set][150] = 1;		   // data now valid
-					lru[set] = 0;  			   // update lru
+					lru[set2] <= 1;
+				end
+				else
+				begin
+					lru[set2] <=0;
+				end
+			end
+			if(readready1 == 1) //wait until the memory has valid data to read from
+			begin
+				if(lru[set1]) //if way 2 was lru replace way2
+				begin
+					way2[set1][127:0] = datareadmiss1;  //update bwith block from memory
+					way2[set1][149:128] = tagin1;	   //update tag
+					way2[set1][150] = 1;		   // data now valid
+					lru[set1] = 0;  			   // update lru
 				end
 				else	//if way1 was lru replace way1
 				begin
-					way1[set][127:0] = datareadmiss;
-					way1[set][149:128] = tag;
-					way1[set][150] = 1;
-					lru[set] = 1; 
+					way1[set1][127:0] = datareadmiss1;
+					way1[set1][149:128] = tagin1;
+					way1[set1][150] = 1;
+					lru[set1] = 1; 
 				end
 				//data = outmux;  //read output is the output of the hit/miss identifier earlier
-				readmiss = 0;
+				readmiss1 = 0;
 				state = INIT;  //go back to INIT
 			end
+			if(readready2 == 1) //wait until the memory has valid data to read from
+			begin
+				if(lru[set2]) //if way 2 was lru replace way2
+				begin
+					way2[set2][127:0] = datareadmiss2;  //update bwith block from memory
+					way2[set2][149:128] = tagin2;	   //update tag
+					way2[set2][150] = 1;		   // data now valid
+					lru[set2] = 0;  			   // update lru
+				end
+				else	//if way1 was lru replace way1
+				begin
+					way1[set2][127:0] = datareadmiss2;
+					way1[set2][149:128] = tagin2;
+					way1[set2][150] = 1;
+					lru[set2] = 1; 
+				end
+				//data = outmux;  //read output is the output of the hit/miss identifier earlier
+				readmiss2 = 0;
+				state = INIT;  //go back to INIT
+			end
+			
 		end
 		endcase
 	end
