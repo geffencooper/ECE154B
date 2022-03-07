@@ -151,11 +151,11 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 	
 		if ((RsE2 !=0) && (RsE2==WriteRegM2) && RegWriteM2)  // if destination in Mem2
 		begin
-			ForwardAE2 <= 3'b100;
+			ForwardAE2 <= 3'b010;
 		end
 		else if ((RsE2 !=0) && (RsE2==WriteRegM1) && RegWriteM1) // if destination in Mem1
 		begin
-			ForwardAE2 <= 3'b010;
+			ForwardAE2 <= 3'b100;
 		end
 		else if ((RsE2 !=0) && (RsE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
 		begin
@@ -172,11 +172,11 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 
 		if ((RtE2 !=0) && (RtE2==WriteRegM2) && RegWriteM2)  // if destination in Mem2
 		begin
-			ForwardBE2 <= 3'b100;
+			ForwardBE2 <= 3'b010;
 		end
 		else if ((RtE2 !=0) && (RtE2==WriteRegM1) && RegWriteM1) // if destination in Mem1
 		begin
-			ForwardBE2 <= 3'b010;
+			ForwardBE2 <= 3'b100;
 		end
 		else if ((RtE2 !=0) && (RtE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
 		begin

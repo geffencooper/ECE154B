@@ -297,10 +297,10 @@ module datapath (input CLK, RESET);
 
 	// muxes to determine the data to writeback to the register file
 	mux2 mem2reg1( .d0(ExecuteOutW1), .d1(ReadDataW1), .s(MemtoRegW1), .y(interResultW1));
-	mux2 jalmux1( .d0(interResultW1), .d1(PCPlus8W1), .s(jumpW1), .y(ResultW1));
+	mux2 jmux1( .d0(interResultW1), .d1(PCPlus8W1), .s(jumpW1), .y(ResultW1));
 
 	mux2 mem2reg2( .d0(ExecuteOutW2), .d1(ReadDataW2), .s(MemtoRegW2), .y(interResultW2));
-	mux2 jalmux2( .d0(interResultW2), .d1(PCPlus8W2), .s(jumpW2), .y(ResultW2));
+	mux2 jmux2( .d0(interResultW2), .d1(PCPlus8W2), .s(jumpW2), .y(ResultW2));
 
 //---------------THORGAN HAZARD------------------//
 

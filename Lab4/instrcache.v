@@ -94,7 +94,7 @@ reg [2:0] state;
 	
 
 
-	always @(posedge readready, posedge Clk, hit1, addy1, datai1, posedge abort,negedge Rst) //added posedge write_word
+	always @(posedge readready, posedge Clk, hit1, hit2, addy1, addy2, datai1, datai2, posedge abort,negedge Rst) //added posedge write_word
 	begin
    		case(state)
 		INIT: begin
