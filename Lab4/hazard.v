@@ -1,13 +1,13 @@
 module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, WriteRegW1, 
 		input [4:0] RsE2, RtE2, RsD2, RtD2, WriteRegE2, WriteRegM2, WriteRegW2,
-		input RegWriteW1, RegWriteM1, MemtoRegM1, RegWriteE1, MemtoRegE1, MemWriteM1, ReadReady, iReadReady, WriteReady, MemWriteE,
-		input RegWriteW2, RegWriteM2, MemtoRegM2, RegWriteE2, MemtoRegE2, MemWriteM2,
+		input RegWriteW1, RegWriteM1, MemtoRegM1, RegWriteE1, MemtoRegE1, MemWriteM1, ReadReady, iReadReady, WriteReady, MemWriteE1,
+		input RegWriteW2, RegWriteM2, MemtoRegM2, RegWriteE2, MemtoRegE2, MemWriteM2, MemWriteE2,
 		input [5:0] op, funct,
 		input rst,clk, abort, Valid, writemiss, readmiss, ireadmiss, MemtoRegD, MemWriteD,
 		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD1, ForwardBD1, 
 		output reg [2:0] ForwardAE1, ForwardBE1, ForwardAE2, ForwardBE2);
 
-	reg lwstall, branchstall, multstall;
+	reg lwstall, branchstall, multstall, rstall;
 	reg branch;
 
 	// these stay high while we have a memory access delay
@@ -25,10 +25,12 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		StallE <= 0;
 		FlushE <= 0;
 		FlushW <= 0;
-		ForwardAD <= 0;
-		ForwardBD <= 0;
-		ForwardAE <= 0;
-		ForwardBE <= 0;
+		ForwardAD1 <= 0;
+		ForwardBD1 <= 0;
+		ForwardAE1 <= 0;
+		ForwardBE1 <= 0;
+		ForwardAE2 <= 0;
+		ForwardBE2 <= 0;
 		lwstall <= 0;
 		branchstall <= 0;
 		multstall <= 0;
@@ -41,7 +43,7 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 	end
 	
 	// we only stall on the posedge because these signals stay high until the request is ready
-	always @(posedge MemWriteE, posedge MemtoRegE)//, posedge MemWriteD, posedge MemtoRegD) 
+	always @(posedge MemWriteE1, posedge MemtoRegE1, posedge MemWriteE2, posedge MemtoRegE2)//, posedge MemWriteD, posedge MemtoRegD) 
 	begin
 		// if a sw is already in progress (WRITING stage), then stall until it is done
 		if(store_inprog || read_inprog)
@@ -112,13 +114,13 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		begin
 			ForwardAE1 <= 3'b010;
 		end
-		else if ((((RsE1 !=0) && (RsE1==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		else if ((RsE1 !=0) && (RsE1==WriteRegW2) && RegWriteW2)  //if destination in WB1
 		begin
 			ForwardAE1 <= 3'b011;
 		end
-		else if (((RsE1 !=0) && (RsE1==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		else if ((RsE1 !=0) && (RsE1==WriteRegW1) && RegWriteW1)  // if destination ni WB2
 		begin
-			FowardAE1 <= 3'b001;
+			ForwardAE1 <= 3'b001;
 		end
 		else							// default
 		begin
@@ -134,13 +136,13 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		begin
 			ForwardBE1 <= 3'b010;
 		end
-		else if ((((RtE1 !=0) && (RtE1==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		else if ((RtE1 !=0) && (RtE1==WriteRegW2) && RegWriteW2)  //if destination in WB1
 		begin
 			ForwardBE1 <= 3'b011;
 		end
-		else if (((RtE1 !=0) && (RtE1==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		else if ((RtE1 !=0) && (RtE1==WriteRegW1) && RegWriteW1)  // if destination ni WB2
 		begin
-			FowardBE1 <= 3'b001;
+			ForwardBE1 <= 3'b001;
 		end
 		else							// default
 		begin
@@ -155,13 +157,13 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		begin
 			ForwardAE2 <= 3'b010;
 		end
-		else if ((((RsE2 !=0) && (RsE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		else if ((RsE2 !=0) && (RsE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
 		begin
 			ForwardAE2 <= 3'b011;
 		end
-		else if (((RsE2 !=0) && (RsE2==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		else if ((RsE2 !=0) && (RsE2==WriteRegW1) && RegWriteW1)  // if destination ni WB2
 		begin
-			FowardAE2 <= 3'b001;
+			ForwardAE2 <= 3'b001;
 		end
 		else							// default
 		begin
@@ -176,13 +178,13 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		begin
 			ForwardBE2 <= 3'b010;
 		end
-		else if ((((RtE2 !=0) && (RtE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
+		else if ((RtE2 !=0) && (RtE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
 		begin
 			ForwardBE2 <= 3'b011;
 		end
-		else if (((RtE2 !=0) && (RtE2==WriteRegW1) && RegWriteW1)  // if destination ni WB2
+		else if ((RtE2 !=0) && (RtE2==WriteRegW1) && RegWriteW1)  // if destination ni WB2
 		begin
-			FowardBE2 <= 3'b001;
+			ForwardBE2 <= 3'b001;
 		end
 		else							// default
 		begin
@@ -205,14 +207,14 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		//ForwardBD2 <= (RtD2 !=0) && (RtD2 == WriteRegM2) && RegWriteM2
 	
 		// r type stalls
-		rstall <= (RsE != 0) 
+		rstall <= (RsE1 != 0) ;
 
 		// lw Stalls, next instruction relies on destination register of lw
-		lwstall <= ((RsD==RtE) || (RtD==RtE)) && MemtoRegE;
+		lwstall <= ((RsD1==RtE1) || (RtD1==RtE1)) && MemtoRegE1;
  
 		//branch stall, branch sources rely on instructions in execute (ALU) or in memory stage (lw)
-		branchstall <= (branch && RegWriteE && ((WriteRegE == RsD) || (WriteRegE == RtD))) ||
-					(branch && MemtoRegM && ((WriteRegM == RsD) || (WriteRegM == RtD)));
+		branchstall <= (branch && RegWriteE1 && ((WriteRegE1 == RsD1) || (WriteRegE1 == RtD1))) ||
+					(branch && MemtoRegM1 && ((WriteRegM1 == RsD1) || (WriteRegM1 == RtD1)));
 		//mult stall, multiplication not valid and a mfhi or mflo instruction shows up
 		multstall <= ((funct == 6'b010000 || funct == 6'b010010)) && ~Valid && op == 6'b000000;
 
