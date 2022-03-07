@@ -60,7 +60,7 @@ module datapath (input CLK, RESET);
 	wire [3:0] ALUControlE1;
 	//wire [4:0] prejumpWriteRegE;
 	wire [4:0] WriteRegE1, WriteRegM1;
-	wire [1:0] ForwardAE1, ForwardBE1;
+	wire [2:0] ForwardAE1, ForwardBE1;
 	wire [31:0] SrcAE1, SrcBE1, WriteDataE1, ALUOutE1, WriteDataM1, PCPlus8E1, PCPlus8M1, PCPlus8W1;
 	wire [31:0] ExecuteOutE1;
 
@@ -71,7 +71,7 @@ module datapath (input CLK, RESET);
 	wire [3:0] ALUControlE2;
 	//wire [4:0] prejumpWriteRegE;
 	wire [4:0] WriteRegE2, WriteRegM2;
-	wire [1:0] ForwardAE2, ForwardBE2;
+	wire [2:0] ForwardAE2, ForwardBE2;
 	wire [31:0] SrcAE2, SrcBE2, WriteDataE2, ALUOutE2, WriteDataM2, PCPlus8E2, PCPlus8M2, PCPlus8W2;
 	wire [31:0] ExecuteOutE2;
 
@@ -231,11 +231,11 @@ module datapath (input CLK, RESET);
 	//mux2 #(5) jregdest( .d0(prejumpWriteRegE), .d1(5'b11111), .s(jumpE), .y(WriteRegE)); //for jal, set writereg to $ra (31)
 
 	// muxes for forwarding from memory and writeback stages
-	mux3 fwda1 ( .d0(RD1E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardAE1), .y(SrcAE1));
-	mux3 fwdb1 ( .d0(RD2E1), .d1(ResultW1), .d2(ExecuteOutM1), .s(ForwardBE1), .y(WriteDataE1));
+	mux5 fwda1 ( .d0(RD1E1), .d1(ResultW1), .d2(ExecuteOutM1), .d3(ResultW2), .d4(ExecuteOutM2), .s(ForwardAE1), .y(SrcAE1));
+	mux5 fwdb1 ( .d0(RD2E1), .d1(ResultW1), .d2(ExecuteOutM1), .d3(ResultW2), .d4(ExecuteOutM2), .s(ForwardBE1), .y(WriteDataE1));
 
-	mux3 fwda2 ( .d0(RD1E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(2'b0), .y(SrcAE2));
-	mux3 fwdb2 ( .d0(RD2E2), .d1(ResultW2), .d2(ExecuteOutM2), .s(2'b0), .y(WriteDataE2));
+	mux5 fwda2 ( .d0(RD1E2), .d1(ResultW2), .d2(ExecuteOutM2), .d3(ResultW1), .d4(ExecuteOutM1), .s(ForwardAE2), .y(SrcAE2));
+	mux5 fwdb2 ( .d0(RD2E2), .d1(ResultW2), .d2(ExecuteOutM2), .d3(ResultW1), .d4(ExecuteOutM1), .s(ForwardBE2), .y(WriteDataE2));
 
 	// alu src mux for immediate portion
 	mux3 srcbmux1 ( .d0(WriteDataE1), .d1(SEimmE1), .d2(ZEimmE1), .s(ALUSrcE1), .y(SrcBE1));
@@ -305,13 +305,17 @@ module datapath (input CLK, RESET);
 //---------------THORGAN HAZARD------------------//
 
 	// hazard unit
-	hazard hazard_unit(	.RsE(RsE1), .RtE(RtE1), .RsD(InstrD1[25:21]), .RtD(InstrD1[20:16]), .WriteRegE(WriteRegE1), .WriteRegM(WriteRegM1), .WriteRegW(WriteRegW1), 
-				.RegWriteW(RegWriteW1), .RegWriteM(RegWriteM1), .MemtoRegM(MemtoRegM1), .RegWriteE(RegWriteE1), .MemtoRegE(MemtoRegE1), .MemWriteM(MemWriteM1),
-				.MemWriteE(MemWriteE1), 
+	hazard hazard_unit(	.RsE1(RsE1), .RtE1(RtE1), .RsD1(InstrD1[25:21]), .RtD1(InstrD1[20:16]), .WriteRegE1(WriteRegE1), .WriteRegM1(WriteRegM1), .WriteRegW1(WriteRegW1),
+				.RsE2(RsE2), .RtE2(RtE2), .RsD2(InstrD2[25:21]), .RtD2(InstrD2[20:16]), .WriteRegE2(WriteRegE2), .WriteRegM2(WriteRegM2), .WriteRegW2(WriteRegW2), 
+				.RegWriteW1(RegWriteW1), .RegWriteM1(RegWriteM1), .MemtoRegM1(MemtoRegM1), .RegWriteE1(RegWriteE1), .MemtoRegE1(MemtoRegE1), .MemWriteM1(MemWriteM1),
+				.MemWriteE1(MemWriteE1), 
+				.RegWriteW2(RegWriteW2), .RegWriteM2(RegWriteM2), .MemtoRegM2(MemtoRegM2), .RegWriteE2(RegWriteE2), .MemtoRegE2(MemtoRegE2), .MemWriteM2(MemWriteM2),
+				.MemWriteE2(MemWriteE2), 
 				.op(InstrD1[31:26]), .funct(InstrD1[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss(memwritethru1), .readmiss(readmiss1), .ireadmiss(ireadmiss1),
 				.MemWriteD(MemWriteD1), .MemtoRegD(MemtoRegD1), 
-				.StallF(StallF1), .StallD(StallD1), .StallE(StallE1), .StallM(StallM1), .FlushE(FlushE1), .FlushW(FlushW1), .ForwardAD(ForwardAD1), .ForwardBD(ForwardBD1), 
-				.ForwardAE(ForwardAE1), .ForwardBE(ForwardBE1), .Valid(1'b0), .ReadReady(ReadReady1), .iReadReady(ireadready1), .WriteReady(WriteReady1));
+				.StallF(StallF1), .StallD(StallD1), .StallE(StallE1), .StallM(StallM1), .FlushE(FlushE1), .FlushW(FlushW1), .ForwardAD1(ForwardAD1), .ForwardBD1(ForwardBD1), 
+				.ForwardAE1(ForwardAE1), .ForwardBE1(ForwardBE1), .ForwardAE2(ForwardAE2), .ForwardBE2(ForwardBE2),
+				.Valid(1'b0), .ReadReady(ReadReady1), .iReadReady(ireadready1), .WriteReady(WriteReady1));
 	
 
 endmodule
@@ -345,6 +349,13 @@ module mux4 #(parameter WIDTH = 32)
 	(input [WIDTH-1:0] d0, d1, d2, d3, input [1:0] s, output [WIDTH-1:0] y); 
 	assign y = s[1] ? (s[0] ? d3:d2):(s[0] ? d1:d0);
 endmodule 
+
+// MUX 5:1 //
+module mux5 #(parameter WIDTH = 32)
+	(input [WIDTH-1:0] d0, d1, d2, d3, d4, input [2:0] s, output [WIDTH-1:0] y); 
+	assign y = s[2] ? d4:(s[1] ? (s[0] ? d3:d2):(s[0] ? d1:d0));
+endmodule 
+
 
 // ADDER //
 module adder(input [31:0] a,b, output [31:0] y);
