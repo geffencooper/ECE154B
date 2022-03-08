@@ -1,11 +1,16 @@
-module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, WriteRegW1, 
+module hazard
+(	
+		input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, WriteRegW1, 
 		input [4:0] RsE2, RtE2, RsD2, RtD2, WriteRegE2, WriteRegM2, WriteRegW2,
 		input RegWriteW1, RegWriteM1, MemtoRegM1, RegWriteE1, MemtoRegE1, MemWriteM1, ReadReady, iReadReady, WriteReady, MemWriteE1,
 		input RegWriteW2, RegWriteM2, MemtoRegM2, RegWriteE2, MemtoRegE2, MemWriteM2, MemWriteE2,
 		input [5:0] op, funct,
 		input rst,clk, abort, Valid, writemiss, readmiss, ireadmiss, MemtoRegD, MemWriteD,
-		output reg StallF, StallD, StallE, StallM, FlushE, FlushW, ForwardAD1, ForwardBD1, 
-		output reg [2:0] ForwardAE1, ForwardBE1, ForwardAE2, ForwardBE2);
+		output reg StallF1, StallD1, StallE1, StallM1, FlushE1, FlushW1, ForwardAD1, ForwardBD1, 
+		output reg StallF2, StallD2, StallE2, StallM2, FlushE2, FlushW2, ForwardAD2, ForwardBD2,
+		output reg [2:0] ForwardAE1, ForwardBE1, ForwardAE2, ForwardBE2,
+		output reg rstall
+);
 
 	reg lwstall, branchstall, multstall, rstall;
 	reg branch;
@@ -20,11 +25,18 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 	// reset registers on global reset
 	always @(posedge rst)
 	begin
-		StallF <= 0;
-		StallD <= 0;
-		StallE <= 0;
-		FlushE <= 0;
-		FlushW <= 0;
+		StallF1 <= 0;
+		StallD1 <= 0;
+		StallE1 <= 0;
+		FlushE1 <= 0;
+		FlushW1 <= 0;
+		StallF2 <= 0;
+		StallD2 <= 0;
+		StallE2 <= 0;
+		FlushE2 <= 0;
+		FlushW2 <= 0;
+		StallM1 <= 0;
+		StallM2 <= 0;
 		ForwardAD1 <= 0;
 		ForwardBD1 <= 0;
 		ForwardAE1 <= 0;
@@ -34,6 +46,7 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		lwstall <= 0;
 		branchstall <= 0;
 		multstall <= 0;
+		rstall <= 0;
 		branch <= 0;
 		DMEM_STALLED <= 0;
 		IMEM_STALLED <= 0;
@@ -88,13 +101,20 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		branch <= (op == 6'b000100 || op == 6'b000101) ? 1 : 0;
 	
 		// a stall in one stage should stall the stages before it
-		StallF <= lwstall || branchstall || multstall || DMEM_STALLED || IMEM_STALLED;
-		StallD <= lwstall || branchstall || multstall || DMEM_STALLED;
-		StallE <= multstall || DMEM_STALLED;
-		StallM <= DMEM_STALLED;
+		StallF1 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall;
+		StallD1 <= lwstall || branchstall || DMEM_STALLED;
+		StallE1 <= multstall || DMEM_STALLED;
+		StallM1 <= DMEM_STALLED;
+
+		StallF2 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall;
+		StallD2 <= lwstall || branchstall || DMEM_STALLED || rstall;
+		StallE2 <= multstall || DMEM_STALLED;
+		StallM2 <= DMEM_STALLED;
 
 		// flush the execute stage on a decode stage stall so 'stale' register values don't propagate
-		FlushE <= lwstall || branchstall;
+		FlushE1 <= lwstall || branchstall;
+
+		FlushE2 <= lwstall || branchstall || rstall;
 
 		// flush the write stage on a data memory stall to avoid piping through incorrect control signals and data memory output
 		// the Clr is synchronous so it only takes effect on the next posedge clock which is what we want because the 'current' val
@@ -207,7 +227,8 @@ module hazard(	input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, Write
 		//ForwardBD2 <= (RtD2 !=0) && (RtD2 == WriteRegM2) && RegWriteM2
 	
 		// r type stalls
-		rstall <= (RsE1 != 0) ;
+		// destination in path 2 execute stage is same reg as source in path 1
+		rstall <= ( (((RsE2 != 0) && (RsE2 == WriteRegE1)) || ((RtE2 != 0) && (RtE2 == WriteRegE1))) && RegWriteE1) ;
 
 		// lw Stalls, next instruction relies on destination register of lw
 		lwstall <= ((RsD1==RtE1) || (RtD1==RtE1)) && MemtoRegE1;
