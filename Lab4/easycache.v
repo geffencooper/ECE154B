@@ -161,9 +161,10 @@ reg [2:0] state;
 
 
 				// process each case
-
+				$display("first inst mem op");
 				if (memtoreg1 && hit_1)	//read hit, just read the data and update lru.
 				begin			//since it is so simple, no need for another state
+					$display("instr 1 read hit");
 					//data <= outmux;
 					readmiss1 <= 0;
 					memwritethru1 <= 0;
@@ -198,8 +199,8 @@ reg [2:0] state;
 					state <= READ;
 				end
 			end
-			else if ((memtoreg2||memwrite2) && (~(memtoreg1||memwrite1)||(memtoreg1 && hit_1)) && ~Rst) //for first indtr is not a mem guy or if frist instruction is a read hit
-			begin
+			else if ((memtoreg2||memwrite2) && (~(memtoreg1||memwrite1)||(memtoreg1 && hit_1)) && ~Rst && ~readready2) //for first indtr is not a mem guy or if frist instruction is a read hit
+			begin												// just added this REadReady2 sig
 				address1 <= addy1;
 				address2 <= addy2;
 				write_word1 <= write_data1; //write_word -> datawrite
@@ -277,7 +278,8 @@ reg [2:0] state;
 					//way1[set][149:128] = tag;
 					way1[set2][150] = 1; //data now valid
 					lru[set2] = 1; //way2 now lru
-				end				
+				end
+				readmiss2 = 0;				
 				memwritethru2 = 0;  //de assert the memwriththru so memory doenst write again
 				state = INIT;  //change back to INIT state
 			end
@@ -309,6 +311,7 @@ reg [2:0] state;
 				//way2[set][150] = 1;  //make sure it knows data alid
 				lru[set2] = 0; //way 1 now lru
 			end
+			readmiss2 = 0;
 			memwritethru2 = 0;  //disbale memwritethru so the memory doesnt write again
 			state = INIT;  //go back to INIT
 		end

@@ -2,17 +2,17 @@ module hazard
 (	
 		input [4:0] RsE1, RtE1, RsD1, RtD1, WriteRegE1, WriteRegM1, WriteRegW1, 
 		input [4:0] RsE2, RtE2, RsD2, RtD2, WriteRegE2, WriteRegM2, WriteRegW2,
-		input RegWriteW1, RegWriteM1, MemtoRegM1, RegWriteE1, MemtoRegE1, MemWriteM1, ReadReady, iReadReady, WriteReady, MemWriteE1,
+		input RegWriteW1, RegWriteM1, MemtoRegM1, RegWriteE1, MemtoRegE1, MemWriteM1, ReadReady1, ReadReady2, iReadReady, WriteReady1, WriteReady2, MemWriteE1,
 		input RegWriteW2, RegWriteM2, MemtoRegM2, RegWriteE2, MemtoRegE2, MemWriteM2, MemWriteE2,
 		input [5:0] op, funct,
-		input rst,clk, abort, Valid, writemiss, readmiss, ireadmiss, MemtoRegD, MemWriteD,
+		input rst,clk, abort, Valid, writemiss1, writemiss2, readmiss1, readmiss2, ireadmiss, MemtoRegD1, MemWriteD,
 		output reg StallF1, StallD1, StallE1, StallM1, FlushE1, FlushW1, ForwardAD1, ForwardBD1, 
-		output reg StallF2, StallD2, StallE2, StallM2, FlushE2, FlushW2, ForwardAD2, ForwardBD2,
+		output reg StallF2, StallD2, StallE2, StallM2, FlushE2, FlushM2, FlushW2, ForwardAD2, ForwardBD2,
 		output reg [2:0] ForwardAE1, ForwardBE1, ForwardAE2, ForwardBE2,
-		output reg rstall
+		output reg rstall, lwstalladjacent
 );
 
-	reg lwstall, branchstall, multstall, rstall;
+	reg lwstall, branchstall, multstall;
 	reg branch;
 
 	// these stay high while we have a memory access delay
@@ -34,6 +34,7 @@ module hazard
 		StallD2 <= 0;
 		StallE2 <= 0;
 		FlushE2 <= 0;
+		FlushM2 <= 0;
 		FlushW2 <= 0;
 		StallM1 <= 0;
 		StallM2 <= 0;
@@ -47,6 +48,7 @@ module hazard
 		branchstall <= 0;
 		multstall <= 0;
 		rstall <= 0;
+		lwstalladjacent <= 0;
 		branch <= 0;
 		DMEM_STALLED <= 0;
 		IMEM_STALLED <= 0;
@@ -75,12 +77,12 @@ module hazard
 	end
 
 	// if we do a sw (always writethrough) then set the register
-	always @(posedge writemiss)
+	always @(posedge writemiss1, posedge writemiss2)
 	begin		
 		store_inprog <=1;
 		//DMEM_STALLED <= 1;
 	end
-	always @(posedge readmiss)
+	always @(posedge readmiss1, posedge readmiss2)
 	begin
 		read_inprog <=1;
 		DMEM_STALLED <= 1;
@@ -101,25 +103,28 @@ module hazard
 		branch <= (op == 6'b000100 || op == 6'b000101) ? 1 : 0;
 	
 		// a stall in one stage should stall the stages before it
-		StallF1 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall;
-		StallD1 <= lwstall || branchstall || DMEM_STALLED;
+		StallF1 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall || lwstalladjacent;
+		StallD1 <= lwstall || branchstall || DMEM_STALLED || rstall;
 		StallE1 <= multstall || DMEM_STALLED;
 		StallM1 <= DMEM_STALLED;
 
-		StallF2 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall;
-		StallD2 <= lwstall || branchstall || DMEM_STALLED || rstall;
-		StallE2 <= multstall || DMEM_STALLED;
+		StallF2 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall || lwstalladjacent;
+		StallD2 <= lwstall || branchstall || DMEM_STALLED || rstall || lwstalladjacent;
+		StallE2 <= multstall || DMEM_STALLED || rstall;
 		StallM2 <= DMEM_STALLED;
 
 		// flush the execute stage on a decode stage stall so 'stale' register values don't propagate
-		FlushE1 <= lwstall || branchstall;
+		FlushE1 <= (lwstall || branchstall || rstall) && ~DMEM_STALLED;
 
-		FlushE2 <= lwstall || branchstall || rstall;
+		FlushE2 <= (lwstall || branchstall || lwstalladjacent) && ~DMEM_STALLED;
+
+		FlushM2 <= rstall;
 
 		// flush the write stage on a data memory stall to avoid piping through incorrect control signals and data memory output
 		// the Clr is synchronous so it only takes effect on the next posedge clock which is what we want because the 'current' val
 		// in the Writeback reg is valid
-		FlushW <= DMEM_STALLED;
+		FlushW1 <= DMEM_STALLED;
+		FlushW2 <= DMEM_STALLED;
 	
 		//Execute Stage Forwarding
 		// when the source register in the execute stage matches the destination registers in the memory or writeback
@@ -231,7 +236,10 @@ module hazard
 		rstall <= ( (((RsE2 != 0) && (RsE2 == WriteRegE1)) || ((RtE2 != 0) && (RtE2 == WriteRegE1))) && RegWriteE1) ;
 
 		// lw Stalls, next instruction relies on destination register of lw
-		lwstall <= ((RsD1==RtE1) || (RtD1==RtE1)) && MemtoRegE1;
+		lwstall <= ((((RsD1==RtE1) || (RtD1==RtE1)) || ((RsD2==RtE1) || (RtD2==RtE1))) && MemtoRegE1)
+			   || ((((RsD2==RtE2) || (RtD2==RtE2)) || ((RsD1==RtE2) || (RtD1==RtE2))) && MemtoRegE2);
+
+		lwstalladjacent <= ((RsD2==RtD1) || (RtD2==RtD1)) && MemtoRegD1;
  
 		//branch stall, branch sources rely on instructions in execute (ALU) or in memory stage (lw)
 		branchstall <= (branch && RegWriteE1 && ((WriteRegE1 == RsD1) || (WriteRegE1 == RtD1))) ||
@@ -242,7 +250,7 @@ module hazard
 	end
 
 	// once we get a ready signal from the memory we can unstall
-	always @(posedge ReadReady, posedge WriteReady)
+	always @(posedge ReadReady1, posedge WriteReady1, posedge ReadReady2, posedge WriteReady2)
 	begin
 		DMEM_STALLED <= 0;
 		store_inprog <= 0;

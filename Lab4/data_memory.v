@@ -129,6 +129,15 @@ begin
 
 			// for these cases, there was no memory op for the first instr, only the second instr
 			
+
+			if((~ReadMiss1 && ~MemWriteThrough1) && ReadMiss2 && MemWriteThrough2)
+			begin
+				sw_miss2 <= 1;
+				address2 <= Address2;
+				state <= READING2;
+				write_data2 <= Write_data2;
+				delay_count <= delay_count + 1;
+			end
 			// only second readmiss
 			else if((~ReadMiss1 && ~MemWriteThrough1) && ReadMiss2)
 			begin

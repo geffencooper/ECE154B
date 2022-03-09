@@ -92,12 +92,13 @@ module datapath (input CLK, RESET);
 	wire [31:0] ReadDataM2, ExecuteOutW2;
 
 	wire MemtoRegW2, RegWriteW2;
-	wire FlushW2;
+	wire FlushM2, FlushW2;
 	wire [31:0] ReadDataW2;
 
 	wire [31:0] addymem2, datawrite2;
 	wire [127:0] datareadmiss2;
 	wire ReadReady2, WriteReady2, readmiss2, memwritethru2;
+	wire lwstalladjacent;
 
 //-----------------FETCH----------------//
 	// PC Selection
@@ -133,7 +134,7 @@ module datapath (input CLK, RESET);
 	adder plus4( .a(PCF1), .b(32'b100), .y(PCF2));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1);
+	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1) || lwstalladjacent;
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
 	FDReg fdreg1( .InstrF(InstrF1), .InstrD(InstrD1), .PCPlus4F(PCPlus8F1), .PCPlus4D(PCPlus8D1), .PCF(PCF1), .PCD(PCD1), 
@@ -158,7 +159,7 @@ module datapath (input CLK, RESET);
 
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD2 = jumpD2 || (PCSrcD2^predictionD2) || rstall;
+	assign FlushD2 = jumpD2 || (PCSrcD2^predictionD2);
 
 
 //-----------------DECODE----------------//
@@ -217,7 +218,7 @@ module datapath (input CLK, RESET);
 			.RegDstD(RegDstD2), .RegDstE(RegDstE2), .OutSelectD(out_selectD2), .OutSelectE(out_selectE2), .jumpD(jumpD2), .jumpE(jumpE2),
 			.Rd1D(RD1D2), .Rd2D(RD2D2), .Rd1E(RD1E2), .Rd2E(RD2E2), .RsD(InstrD2[25:21]), .RsE(RsE2), .RtD(InstrD2[20:16]), 
 			.RtE(RtE2), .RdD(InstrD2[15:11]), . RdE(RdE2), .SEimmD(SEimmD2), .SEimmE(SEimmE2), .ZEimmD(ZEimmD2), .ZEimmE(ZEimmE2),
-			.ZPimmD(ZPimmD2), .ZPimmE(ZPimmE2), .PCPlus4D(PCPlus8D2), .PCPlus4E(PCPlus8E2), .Clk(CLK), .Clr(FlushE1 || RESET), .En(StallE1), //FlushE2, StallE2
+			.ZPimmD(ZPimmD2), .ZPimmE(ZPimmE2), .PCPlus4D(PCPlus8D2), .PCPlus4E(PCPlus8E2), .Clk(CLK), .Clr(FlushE2 || RESET), .En(StallE2), //FlushE2, StallE2
 			.PCE(PCE2), .PCD(PCD2), .isBranchE(isBranchE2), .isBranchD(isBranchD2), .PCSrcE(PCSrcE2), .PCSrcD(PCSrcD2), .PCBranchE(PCBranchE2), .PCBranchD(PCBranchD2));
 
 //-----------------EXECUTE----------------//
@@ -261,7 +262,7 @@ module datapath (input CLK, RESET);
 			.MemtoRegM(MemtoRegM2), .MemWriteE(MemWriteE2), .MemWriteM(MemWriteM2),
 			.ExecuteOutE(ExecuteOutE2), .ExecuteOutM(ExecuteOutM2), .WriteDataE(WriteDataE2), .WriteDataM(WriteDataM2), 
 			.WriteRegE(WriteRegE2), .WriteRegM(WriteRegM2), .PCPlus4E(PCPlus8E2), .PCPlus4M(PCPlus8M2), .jumpE(jumpE2), 
-			.jumpM(jumpM2), .En(StallM1), .Clk(CLK), .Clr(RESET)); //StallM2
+			.jumpM(jumpM2), .En(StallM2), .Clk(CLK), .Clr(RESET || FlushM2)); //StallM2
 
 
 //-----------------MEMORY----------------//
@@ -311,12 +312,12 @@ module datapath (input CLK, RESET);
 				.MemWriteE1(MemWriteE1), 
 				.RegWriteW2(RegWriteW2), .RegWriteM2(RegWriteM2), .MemtoRegM2(MemtoRegM2), .RegWriteE2(RegWriteE2), .MemtoRegE2(MemtoRegE2), .MemWriteM2(MemWriteM2),
 				.MemWriteE2(MemWriteE2), 
-				.op(InstrD1[31:26]), .funct(InstrD1[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss(memwritethru1), .readmiss(readmiss1), .ireadmiss(ireadmiss1),
-				.MemWriteD(MemWriteD1), .MemtoRegD(MemtoRegD1), 
+				.op(InstrD1[31:26]), .funct(InstrD1[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss1(memwritethru1), .writemiss2(memwritethru2), .readmiss1(readmiss1), .readmiss2(readmiss2), .ireadmiss(ireadmiss1),
+				.MemWriteD(MemWriteD1), .MemtoRegD1(MemtoRegD1), 
 				.StallF1(StallF1), .StallD1(StallD1), .StallE1(StallE1), .StallM1(StallM1), .FlushE1(FlushE1), .FlushW1(FlushW1), .ForwardAD1(ForwardAD1), .ForwardBD1(ForwardBD1),
-				.StallF2(StallF2), .StallD2(StallD2), .StallE2(StallE2), .StallM2(StallM2), .FlushE2(FlushE2), .FlushW2(FlushW2), .ForwardAD2(ForwardAD2), .ForwardBD2(ForwardBD2), 
+				.StallF2(StallF2), .StallD2(StallD2), .StallE2(StallE2), .StallM2(StallM2), .FlushE2(FlushE2), .FlushM2(FlushM2), .FlushW2(FlushW2), .ForwardAD2(ForwardAD2), .ForwardBD2(ForwardBD2), 
 				.ForwardAE1(ForwardAE1), .ForwardBE1(ForwardBE1), .ForwardAE2(ForwardAE2), .ForwardBE2(ForwardBE2),
-				.Valid(1'b0), .ReadReady(ReadReady1), .iReadReady(ireadready1), .WriteReady(WriteReady1), .rstall(rstall));
+				.Valid(1'b0), .ReadReady1(ReadReady1), .ReadReady2(ReadReady2), .iReadReady(ireadready1), .WriteReady1(WriteReady1), .WriteReady2(WriteReady2), .rstall(rstall), .lwstalladjacent(lwstalladjacent));
 	
 
 endmodule
