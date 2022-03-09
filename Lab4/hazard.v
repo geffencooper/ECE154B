@@ -205,11 +205,11 @@ module hazard
 		end
 		else if ((RtE2 !=0) && (RtE2==WriteRegW2) && RegWriteW2)  //if destination in WB1
 		begin
-			ForwardBE2 <= 3'b011;
+			ForwardBE2 <= 3'b001;
 		end
 		else if ((RtE2 !=0) && (RtE2==WriteRegW1) && RegWriteW1)  // if destination ni WB2
 		begin
-			ForwardBE2 <= 3'b001;
+			ForwardBE2 <= 3'b011;
 		end
 		else							// default
 		begin
