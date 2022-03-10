@@ -239,7 +239,7 @@ module hazard
 		lwstall <= ((((RsD1==RtE1) || (RtD1==RtE1)) || ((RsD2==RtE1) || (RtD2==RtE1))) && MemtoRegE1)
 			   || ((((RsD2==RtE2) || (RtD2==RtE2)) || ((RsD1==RtE2) || (RtD1==RtE2))) && MemtoRegE2);
 
-		lwstalladjacent <= ((RsD2==RtD1) || (RtD2==RtD1)) && MemtoRegD1;
+		lwstalladjacent <= ((RsD2==RtD1) || (RtD2==RtD1)) && MemtoRegD1 && ~rstall;
  
 		//branch stall, branch sources rely on instructions in execute (ALU) or in memory stage (lw)
 		branchstall <= (branch && RegWriteE1 && ((WriteRegE1 == RsD1) || (WriteRegE1 == RtD1))) ||

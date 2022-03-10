@@ -107,14 +107,21 @@ module datapath (input CLK, RESET);
 
 	mux2 predictmux1( .d0(PCInter1), .d1(PCPredict1), .s(btbhit1), .y(PCInter21));
 
-	btbuff_ btbuffer1(.PC_current(PCF1), .PC(PCE1), .PCBranch(PCBranchE1), .Branch(isBranchE1), .BranchTaken(PCSrcE1), .Clk(CLK), .Rst(RESET), 
-		.statein(branchstate1), .PCPredict(PCPredict1), .prediction(predictionF1), .btbhit(btbhit1)); //PCPredict is output to the new mux
+	btbuff_ btbuffer(.PC_current1(PCF1), .PC1(PCE1), .PCBranch1(PCBranchE1), .Branch1(isBranchE1), .BranchTaken1(PCSrcE1), .Clk(CLK), .Rst(RESET), 
+		.statein1(branchstate1), .PCPredict1(PCPredict1), .prediction1(predictionF1), .btbhit1(btbhit1),
+		.PC_current2(PCF2), .PC2(PCE2), .PCBranch2(PCBranchE2), .Branch2(isBranchE2), .BranchTaken2(PCSrcE2), 
+		.statein2(branchstate2), .PCPredict2(PCPredict2), .prediction2(predictionF2), .btbhit2(btbhit2)); //PCPredict is output to the new mux
 	
 	// PC Selection
 	mux2 branchmux2( .d0(PCInter22) , .d1(PCBranchD2), .s((PCSrcD2 ^ predictionD2)), .y(PCprime2));
-	mux2 jumpmux2( .d0(PCPlus8F2), .d1(PCJump2), .s(jumpD2), .y(PCInter2));
 
-	mux2 predictmux2( .d0(PCInter2), .d1(PCPredict2), .s(btbhit2), .y(PCInter22));
+	mux2 predictmux2( .d0(PCJump2), .d1(PCPredict2), .s(btbhit2), .y(PCInter22));
+
+
+	mux2 convergemux( .d0(PCprime1), .d1(PCprime2), .s( (jump2 || btbhit2 || (PCSrcD2 ^ predictionD2)) && ~(jump1 || btbhit1 || (PCSrcD1 ^ predictionD1)) ), .y(PCconverge));
+
+	// gets correct PC from each path's prediction
+	pcaligner aligner(PCconverge, PCF1, PCF2, RESET);
 
         // pc register and instruction memory
 	register #(32) PCreg1( .D(PCprime1), .Q(PCF1), .En(StallF1), .Clk(CLK), .Clr(RESET));
@@ -131,7 +138,6 @@ module datapath (input CLK, RESET);
 
 
 	adder plus8( .a(PCF1), .b(32'b1000), .y(PCPlus8F1));
-	adder plus4( .a(PCF1), .b(32'b100), .y(PCF2));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
 	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1) || lwstalladjacent;
@@ -223,7 +229,8 @@ module datapath (input CLK, RESET);
 
 //-----------------EXECUTE----------------//
 
-	bht_ ranch_predictor(.PC(PCE1), .Branch(isBranchE1), .BranchTaken(PCSrcE1), .Clk(CLK), .Rst(RESET), .stateout(branchstate1));
+	twolevel_bp ranch_predictor(.PC1(PCE1), .Branch1(isBranchE1), .BranchTaken1(PCSrcE1), .Clk(CLK), .Rst(RESET), .stateout1(branchstate1),
+			     .PC2(PCE2), .Branch2(isBranchE2), .BranchTaken2(PCSrcE2), .stateout2(branchstate2));
 
 	// muxes for determining the destination register
 	mux2 #(5) regdest1( .d0(RtE1), .d1(RdE1), .s(RegDstE1), .y(WriteRegE1));
@@ -384,4 +391,28 @@ endmodule
 module zeropad(input [15:0] a, output [31:0] y);
 	assign y = {a,{16'b0}};
 endmodule 
+
+// PC ALIGNER
+module pcaligner(input [31:0] PCin, output reg [31:0] PCout1, output reg [31:0] PCout2, input rst);
+	always @(posedge rst)
+	begin
+		 PCout1 <= 32'b0;
+		 PCout2 <= 32'b0;
+	end
+	
+	always @(PCin)
+	begin
+		// next pc is odd, set top to nop, set bottom to odd
+		if(PCin[2] == 1)
+		begin
+			PCout1 <= 32'b0;
+			PCout2 <= PCin;
+		end
+		else // normal case, PC + 8, top is even, bottom is odd part
+		begin
+			PCout1 <= PCin;
+			PCout2 <= PCin + 32'h4;
+		end
+	end
+endmodule
 
