@@ -296,7 +296,7 @@ module hazard
 				|| ((branch2 && RegWriteE1 && ((WriteRegE1 == RsD2) || (WriteRegE1 == RtD2))) || (branch2 && MemtoRegM1 && ((WriteRegM1 == RsD2) || (WriteRegM1 == RtD2))))
 				|| ((branch2 && RegWriteE2 && ((WriteRegE2 == RsD2) || (WriteRegE2 == RtD2))) || (branch2 && MemtoRegM2 && ((WriteRegM2 == RsD2) || (WriteRegM2 == RtD2)))));
 
-		branchstalladjacent <= branch2 && ((RsD2 == RtD1)||(RtD2 == RtD1)) && ~rstall;// && ~branchstall;
+		branchstalladjacent <= branch2 && MemtoRegD1 && (((RsD2 == RtD1)&& (RtD1!=0))||((RtD2 == RtD1)&&(RtD1!=0))) && ~rstall;// && ~branchstall;
 
 
 	end

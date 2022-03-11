@@ -141,7 +141,7 @@ module datapath (input CLK, RESET);
 	adder plus8( .a(PCF1), .b(32'b1000), .y(PCPlus8F1));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1) || lwstalladjacent || branchstalladjacent;
+	assign FlushD1 = jumpD1 || jumpD2 || (PCSrcD1^predictionD1) || lwstalladjacent || branchstalladjacent;
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
 	FDReg fdreg1( .InstrF(InstrF1), .InstrD(InstrD1), .PCPlus4F(PCPlus8F1), .PCPlus4D(PCPlus8D1), .PCF(PCF1), .PCD(PCD1), 
@@ -166,7 +166,7 @@ module datapath (input CLK, RESET);
 
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD2 = jumpD2 || (PCSrcD2^predictionD2);
+	assign FlushD2 = jumpD2 || jumpD1 || (PCSrcD2^predictionD2) || (PCSrcD1&&~predictionD1);
 
 
 //-----------------DECODE----------------//
