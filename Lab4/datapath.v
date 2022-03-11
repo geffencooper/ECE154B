@@ -3,11 +3,11 @@ module datapath (input CLK, RESET);
 	// fetch and decode wires
 	wire [31:0] InstrF1, PCPlus8F1, PCBranchD1, PCInter1, PCJump1, PCprime1, PCF1, InstrD1, PCPlus8D1;
 	wire PCSrcD1, jumpD1, StallF1, FlushD1, StallD1, StallE1, StallM1;
-	wire [31:0] liljump1, PCInter21, PCPredict1;
+	wire [31:0] liljump1, PCInter21, PCPredict1, PCconverge, PCF;
 	wire ireadmiss1, ireadready1;
 	wire [31:0] iaddy1;
 	wire [4095:0] idata1;
-	wire predictionF1;
+	wire predictionF1, convergeenable;
 	wire [1:0] branchstate1;
 
 	wire [31:0] InstrF2, PCPlus8F2, PCBranchD2, PCInter2, PCJump2, PCprime2, PCF2, InstrD2, PCPlus8D2;
@@ -28,7 +28,7 @@ module datapath (input CLK, RESET);
 	wire [4:0] WriteRegW1;
 	wire [31:0] SEimmD1, ZEimmD1, ZPimmD1, SEimmshftD1, SEimmE1, ZEimmE1, ZPimmE1;
 	wire [31:0] ExecuteOutM1, branch_checkA1, branch_checkB1;
-	wire ForwardAD1, ForwardBD1;
+	wire [1:0] ForwardAD1, ForwardBD1;
 	wire [31:0] RD1E1, RD2E1; 
 	wire [4:0] RsE1, RtE1, RdE1;
 	wire FlushE1, btbhit1;
@@ -44,7 +44,7 @@ module datapath (input CLK, RESET);
 	wire [4:0] WriteRegW2;
 	wire [31:0] SEimmD2, ZEimmD2, ZPimmD2, SEimmshftD2, SEimmE2, ZEimmE2, ZPimmE2;
 	wire [31:0] ExecuteOutM2, branch_checkA2, branch_checkB2;
-	wire ForwardAD2, ForwardBD2;
+	wire [1:0] ForwardAD2, ForwardBD2;
 	wire [31:0] RD1E2, RD2E2; 
 	wire [4:0] RsE2, RtE2, RdE2;
 	wire FlushE2, btbhit2;
@@ -98,7 +98,7 @@ module datapath (input CLK, RESET);
 	wire [31:0] addymem2, datawrite2;
 	wire [127:0] datareadmiss2;
 	wire ReadReady2, WriteReady2, readmiss2, memwritethru2;
-	wire lwstalladjacent;
+	wire lwstalladjacent, branchstalladjacent;
 
 //-----------------FETCH----------------//
 	// PC Selection
@@ -107,7 +107,7 @@ module datapath (input CLK, RESET);
 
 	mux2 predictmux1( .d0(PCInter1), .d1(PCPredict1), .s(btbhit1), .y(PCInter21));
 
-	btbuff_ btbuffer(.PC_current1(PCF1), .PC1(PCE1), .PCBranch1(PCBranchE1), .Branch1(isBranchE1), .BranchTaken1(PCSrcE1), .Clk(CLK), .Rst(RESET), 
+	btbuff btbuffer(.PC_current1(PCF1), .PC1(PCE1), .PCBranch1(PCBranchE1), .Branch1(isBranchE1), .BranchTaken1(PCSrcE1), .Clk(CLK), .Rst(RESET), 
 		.statein1(branchstate1), .PCPredict1(PCPredict1), .prediction1(predictionF1), .btbhit1(btbhit1),
 		.PC_current2(PCF2), .PC2(PCE2), .PCBranch2(PCBranchE2), .Branch2(isBranchE2), .BranchTaken2(PCSrcE2), 
 		.statein2(branchstate2), .PCPredict2(PCPredict2), .prediction2(predictionF2), .btbhit2(btbhit2)); //PCPredict is output to the new mux
@@ -117,14 +117,15 @@ module datapath (input CLK, RESET);
 
 	mux2 predictmux2( .d0(PCJump2), .d1(PCPredict2), .s(btbhit2), .y(PCInter22));
 
+	assign convergeenable = (jumpD2 || btbhit2 || (PCSrcD2 ^ predictionD2)) && ~(jumpD1 || btbhit1 || (PCSrcD1 ^ predictionD1)) ;
 
-	mux2 convergemux( .d0(PCprime1), .d1(PCprime2), .s( (jump2 || btbhit2 || (PCSrcD2 ^ predictionD2)) && ~(jump1 || btbhit1 || (PCSrcD1 ^ predictionD1)) ), .y(PCconverge));
+	mux2 convergemux( .d0(PCprime1), .d1(PCprime2), .s(convergeenable), .y(PCconverge));
 
 	// gets correct PC from each path's prediction
-	pcaligner aligner(PCconverge, PCF1, PCF2, RESET);
+	pcaligner aligner(PCF, PCF1, PCF2, RESET);
 
         // pc register and instruction memory
-	register #(32) PCreg1( .D(PCprime1), .Q(PCF1), .En(StallF1), .Clk(CLK), .Clr(RESET));
+	register #(32) PCreg1( .D(PCconverge), .Q(PCF), .En(StallF1), .Clk(CLK), .Clr(RESET));
 	
 	assign abort = PCSrcD1 ^ predictionD1;
 
@@ -133,14 +134,14 @@ module datapath (input CLK, RESET);
 			   .instr1(InstrF1), .address1(iaddy1), .readmiss(ireadmiss1),
 			   .addy2(PCF2), .instr2(InstrF2));
 
-	inst_memory #(15) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
+	inst_memory #(14) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
 				.abort(abort), .Clk(CLK), .Rst(RESET));
 
 
 	adder plus8( .a(PCF1), .b(32'b1000), .y(PCPlus8F1));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1) || lwstalladjacent;
+	assign FlushD1 = jumpD1 || (PCSrcD1^predictionD1) || lwstalladjacent || branchstalladjacent;
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
 	FDReg fdreg1( .InstrF(InstrF1), .InstrD(InstrD1), .PCPlus4F(PCPlus8F1), .PCPlus4D(PCPlus8D1), .PCF(PCF1), .PCD(PCD1), 
@@ -152,11 +153,11 @@ module datapath (input CLK, RESET);
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
 	FDReg fdreg2( .InstrF(InstrF2), .InstrD(InstrD2), .PCPlus4F(PCPlus8F2), .PCPlus4D(PCPlus8D2), .PCF(PCF2), .PCD(PCD2), 
-			.predictionF(predictionF1), .predictionD(predictionD2), .En(StallD2), .Clk(CLK), .Clr(FlushD2 || RESET)); //FlushD2 and StallD2 and predictionF2
+			.predictionF(predictionF2), .predictionD(predictionD2), .En(StallD2), .Clk(CLK), .Clr(FlushD2 || RESET)); //FlushD2 and StallD2 and predictionF2
 	
         //jump target addy
 	shftr jumpshift2( .a({6'b0,InstrD2[25:0]}), .y(liljump2));
-	assign PCJump2 = {PCPlus8F2[31:28],liljump2[27:0]};
+	assign PCJump2 = {PCPlus8F1[31:28],liljump2[27:0]};
 
 	
 
@@ -198,12 +199,15 @@ module datapath (input CLK, RESET);
 	adder btadder1( .a(SEimmshftD1), .b(PCPlus8D1), .y(PCBranchD1));
 
 	shftr branchshift2( .a(SEimmD2), .y(SEimmshftD2));
-	adder btadder2( .a(SEimmshftD2), .b(PCPlus8D2), .y(PCBranchD2));
+	adder btadder2( .a(SEimmshftD2), .b(PCPlus8D1 + 32'h4), .y(PCBranchD2));
 	
 	// muxes for branch conditions to get most up to date registers
-	mux2 branchfwda( .d0(RD1D1), .d1(ExecuteOutM1), .s(ForwardAD1), .y(branch_checkA1));
-	mux2 branchfwdb( .d0(RD2D1), .d1(ExecuteOutM1), .s(ForwardBD1), .y(branch_checkB1));
+	mux3 branchfwda1( .d0(RD1D1), .d1(ExecuteOutM1), .d2(ExecuteOutM2), .s(ForwardAD1), .y(branch_checkA1));
+	mux3 branchfwdb1( .d0(RD2D1), .d1(ExecuteOutM1), .d2(ExecuteOutM2), .s(ForwardBD1), .y(branch_checkB1));
 
+	// muxes for branch conditions to get most up to date registers
+	mux3 branchfwda2( .d0(RD1D2), .d1(ExecuteOutM2), .d2(ExecuteOutM1), .s(ForwardAD2), .y(branch_checkA2));
+	mux3 branchfwdb2( .d0(RD2D2), .d1(ExecuteOutM2), .d2(ExecuteOutM1), .s(ForwardBD2), .y(branch_checkB2));
 
 	// branch comparator
 	equality eq1( .op(InstrD1[31:26]), .srca(branch_checkA1), .srcb(branch_checkB1), .StallD(StallD1), .eq_ne(PCSrcD1), .branch(isBranchD1));
@@ -319,12 +323,13 @@ module datapath (input CLK, RESET);
 				.MemWriteE1(MemWriteE1), 
 				.RegWriteW2(RegWriteW2), .RegWriteM2(RegWriteM2), .MemtoRegM2(MemtoRegM2), .RegWriteE2(RegWriteE2), .MemtoRegE2(MemtoRegE2), .MemWriteM2(MemWriteM2),
 				.MemWriteE2(MemWriteE2), 
-				.op(InstrD1[31:26]), .funct(InstrD1[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss1(memwritethru1), .writemiss2(memwritethru2), .readmiss1(readmiss1), .readmiss2(readmiss2), .ireadmiss(ireadmiss1),
+				.op1(InstrD1[31:26]), .op2(InstrD2[31:26]), .funct(InstrD1[5:0]), .rst(RESET), .clk(CLK), .abort(abort), .writemiss1(memwritethru1), .writemiss2(memwritethru2), .readmiss1(readmiss1), .readmiss2(readmiss2), .ireadmiss(ireadmiss1),
 				.MemWriteD(MemWriteD1), .MemtoRegD1(MemtoRegD1), 
 				.StallF1(StallF1), .StallD1(StallD1), .StallE1(StallE1), .StallM1(StallM1), .FlushE1(FlushE1), .FlushW1(FlushW1), .ForwardAD1(ForwardAD1), .ForwardBD1(ForwardBD1),
 				.StallF2(StallF2), .StallD2(StallD2), .StallE2(StallE2), .StallM2(StallM2), .FlushE2(FlushE2), .FlushM2(FlushM2), .FlushW2(FlushW2), .ForwardAD2(ForwardAD2), .ForwardBD2(ForwardBD2), 
 				.ForwardAE1(ForwardAE1), .ForwardBE1(ForwardBE1), .ForwardAE2(ForwardAE2), .ForwardBE2(ForwardBE2),
-				.Valid(1'b0), .ReadReady1(ReadReady1), .ReadReady2(ReadReady2), .iReadReady(ireadready1), .WriteReady1(WriteReady1), .WriteReady2(WriteReady2), .rstall(rstall), .lwstalladjacent(lwstalladjacent));
+				.Valid(1'b0), .ReadReady1(ReadReady1), .ReadReady2(ReadReady2), .iReadReady(ireadready1), .WriteReady1(WriteReady1), .WriteReady2(WriteReady2), .rstall(rstall), 
+				.lwstalladjacent(lwstalladjacent), .branchstalladjacent(branchstalladjacent));
 	
 
 endmodule

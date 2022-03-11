@@ -4,16 +4,17 @@ module hazard
 		input [4:0] RsE2, RtE2, RsD2, RtD2, WriteRegE2, WriteRegM2, WriteRegW2,
 		input RegWriteW1, RegWriteM1, MemtoRegM1, RegWriteE1, MemtoRegE1, MemWriteM1, ReadReady1, ReadReady2, iReadReady, WriteReady1, WriteReady2, MemWriteE1,
 		input RegWriteW2, RegWriteM2, MemtoRegM2, RegWriteE2, MemtoRegE2, MemWriteM2, MemWriteE2,
-		input [5:0] op, funct,
+		input [5:0] op1, op2, funct,
 		input rst,clk, abort, Valid, writemiss1, writemiss2, readmiss1, readmiss2, ireadmiss, MemtoRegD1, MemWriteD,
-		output reg StallF1, StallD1, StallE1, StallM1, FlushE1, FlushW1, ForwardAD1, ForwardBD1, 
-		output reg StallF2, StallD2, StallE2, StallM2, FlushE2, FlushM2, FlushW2, ForwardAD2, ForwardBD2,
+		output reg StallF1, StallD1, StallE1, StallM1, FlushE1, FlushW1,
+		output reg [1:0] ForwardAD1, ForwardBD1, ForwardAD2, ForwardBD2,
+		output reg StallF2, StallD2, StallE2, StallM2, FlushE2, FlushM2, FlushW2,
 		output reg [2:0] ForwardAE1, ForwardBE1, ForwardAE2, ForwardBE2,
-		output reg rstall, lwstalladjacent
+		output reg rstall, lwstalladjacent, branchstalladjacent
 );
 
-	reg lwstall, branchstall, multstall;
-	reg branch;
+	reg lwstall, branchstall;
+	reg branch1, branch2;
 
 	// these stay high while we have a memory access delay
 	reg DMEM_STALLED;
@@ -46,10 +47,11 @@ module hazard
 		ForwardBE2 <= 0;
 		lwstall <= 0;
 		branchstall <= 0;
-		multstall <= 0;
 		rstall <= 0;
 		lwstalladjacent <= 0;
-		branch <= 0;
+		branchstalladjacent <= 0;
+		branch1 <= 0;
+		branch2 <= 0;
 		DMEM_STALLED <= 0;
 		IMEM_STALLED <= 0;
 		store_inprog <= 0;
@@ -100,23 +102,24 @@ module hazard
 	always @(*)
 	begin
 		// branch on bne or beq instructions
-		branch <= (op == 6'b000100 || op == 6'b000101) ? 1 : 0;
+		branch1 <= (op1 == 6'b000100 || op1 == 6'b000101) ? 1 : 0;
+		branch2 <= (op2 == 6'b000100 || op2 == 6'b000101) ? 1 : 0;
 	
 		// a stall in one stage should stall the stages before it
-		StallF1 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall || lwstalladjacent;
+		StallF1 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall || lwstalladjacent || branchstalladjacent;
 		StallD1 <= lwstall || branchstall || DMEM_STALLED || rstall;
-		StallE1 <= multstall || DMEM_STALLED;
+		StallE1 <= DMEM_STALLED;
 		StallM1 <= DMEM_STALLED;
 
-		StallF2 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall || lwstalladjacent;
-		StallD2 <= lwstall || branchstall || DMEM_STALLED || rstall || lwstalladjacent;
-		StallE2 <= multstall || DMEM_STALLED || rstall;
+		StallF2 <= lwstall || branchstall || DMEM_STALLED || IMEM_STALLED || rstall || lwstalladjacent || branchstalladjacent;
+		StallD2 <= lwstall || branchstall || DMEM_STALLED || rstall || lwstalladjacent || branchstalladjacent;
+		StallE2 <= DMEM_STALLED || rstall;
 		StallM2 <= DMEM_STALLED;
 
 		// flush the execute stage on a decode stage stall so 'stale' register values don't propagate
 		FlushE1 <= (lwstall || branchstall || rstall) && ~DMEM_STALLED;
 
-		FlushE2 <= (lwstall || branchstall || lwstalladjacent) && ~DMEM_STALLED;
+		FlushE2 <= (lwstall || branchstall || lwstalladjacent || branchstalladjacent) && ~DMEM_STALLED;
 
 		FlushM2 <= rstall;
 
@@ -225,12 +228,58 @@ module hazard
 
 		//Decode Stage Forwarding
 		// when the source register in the decode stage is the same as the destination register in the memory stage (branch)
-		ForwardAD1 <= (RsD1 !=0) && (RsD1 == WriteRegM1) && RegWriteM1;
-		ForwardBD1 <= (RtD1 !=0) && (RtD1 == WriteRegM1) && RegWriteM1;
+		if( (RsD1 !=0) && (RsD1 == WriteRegM2) && RegWriteM2 )
+		begin
+			ForwardAD1 <= 2'b10;
+		end
+		else if( (RsD1 !=0) && (RsD1 == WriteRegM1) && RegWriteM1 )
+		begin
+			ForwardAD1 <= 2'b01;
+		end
+		else
+		begin
+			ForwardAD1 <= 2'b00;
+		end
 
-		//ForwardAD2 <= (RsD2 !=0) && (RsD2 == WriteRegM2) && RegWriteM2;
-		//ForwardBD2 <= (RtD2 !=0) && (RtD2 == WriteRegM2) && RegWriteM2
-	
+		if( (RsD2!=0) && (RsD2 == WriteRegM2) && RegWriteM2 )
+		begin
+			ForwardAD2 <= 2'b01;
+		end
+		else if( (RsD2 !=0) && (RsD2 == WriteRegM1) && RegWriteM1 )
+		begin
+			ForwardAD2 <= 2'b10;
+		end
+		else
+		begin
+			ForwardAD2 <= 2'b00;
+		end
+
+		if( (RtD1 !=0) && (RtD1 == WriteRegM2) && RegWriteM2 )
+		begin
+			ForwardBD1 <= 2'b10;
+		end
+		else if( (RtD1 !=0) && (RtD1 == WriteRegM1) && RegWriteM1 )
+		begin
+			ForwardBD1 <= 2'b01;
+		end
+		else
+		begin
+			ForwardBD1 <= 2'b00;
+		end
+
+		if( (RtD2 !=0) && (RtD2 == WriteRegM2) && RegWriteM2 )
+		begin
+			ForwardBD2 <= 2'b01;
+		end
+		else if( (RtD2 !=0) && (RtD2 == WriteRegM1) && RegWriteM1 )
+		begin
+			ForwardBD2 <= 2'b10;
+		end
+		else
+		begin
+			ForwardBD2 <= 2'b00;
+		end
+
 		// r type stalls
 		// destination in path 2 execute stage is same reg as source in path 1
 		rstall <= ( (((RsE2 != 0) && (RsE2 == WriteRegE1)) || ((RtE2 != 0) && (RtE2 == WriteRegE1))) && RegWriteE1) ;
@@ -242,10 +291,13 @@ module hazard
 		lwstalladjacent <= ((RsD2==RtD1) || (RtD2==RtD1)) && MemtoRegD1 && ~rstall;
  
 		//branch stall, branch sources rely on instructions in execute (ALU) or in memory stage (lw)
-		branchstall <= (branch && RegWriteE1 && ((WriteRegE1 == RsD1) || (WriteRegE1 == RtD1))) ||
-					(branch && MemtoRegM1 && ((WriteRegM1 == RsD1) || (WriteRegM1 == RtD1)));
-		//mult stall, multiplication not valid and a mfhi or mflo instruction shows up
-		multstall <= ((funct == 6'b010000 || funct == 6'b010010)) && ~Valid && op == 6'b000000;
+		branchstall <= ~branchstalladjacent && (((branch1 && RegWriteE1 && ((WriteRegE1 == RsD1) || (WriteRegE1 == RtD1))) || (branch1 && MemtoRegM1 && ((WriteRegM1 == RsD1) || (WriteRegM1 == RtD1))))
+				|| ((branch1 && RegWriteE2 && ((WriteRegE2 == RsD1) || (WriteRegE2 == RtD1))) || (branch1 && MemtoRegM2 && ((WriteRegM2 == RsD1) || (WriteRegM2 == RtD1))))
+				|| ((branch2 && RegWriteE1 && ((WriteRegE1 == RsD2) || (WriteRegE1 == RtD2))) || (branch2 && MemtoRegM1 && ((WriteRegM1 == RsD2) || (WriteRegM1 == RtD2))))
+				|| ((branch2 && RegWriteE2 && ((WriteRegE2 == RsD2) || (WriteRegE2 == RtD2))) || (branch2 && MemtoRegM2 && ((WriteRegM2 == RsD2) || (WriteRegM2 == RtD2)))));
+
+		branchstalladjacent <= branch2 && ((RsD2 == RtD1)||(RtD2 == RtD1)) && ~rstall;// && ~branchstall;
+
 
 	end
 
