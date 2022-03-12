@@ -56,6 +56,8 @@ reg [31:0] write_data2;
 reg second_read_req;
 reg second_write_req;
 
+reg readmiss1, readmiss2, memwritethrough1,memwritethrough2;
+
 
 // state register for read and write on a sw miss
 reg sw_miss1;
@@ -82,6 +84,10 @@ begin
 	curr_address2 <= 0;
 	second_read_req <= 0;
 	second_write_req <= 0;
+	readmiss1 <= 0;
+	readmiss2 <= 0;
+	memwritethrough1 <= 0;
+	memwritethrough2 <= 0;
 
 	// set the memory to all zeros to avoid xxxx...
 	for(idx = 0; idx < ROWS; idx = idx + 1)
@@ -109,7 +115,10 @@ begin
 				address1 <= Address1;
 				state <= READING1;
 				write_data1 <= Write_data1;
+				write_data2 <= Write_data2;
 				delay_count <= delay_count + 1;
+				readmiss1 <= 1;
+				memwritethrough1 <= 1;
 			end
 			// lw miss
 			else if(ReadMiss1)
@@ -117,6 +126,7 @@ begin
 				state <= READING1;
 				address1 <= Address1;
 				delay_count <= delay_count + 1; // increment now because won't be observed till start of nex cycle
+				readmiss1 <= 1;
 			end
 			// sw write through (sw hit)
 			else if(MemWriteThrough1)
@@ -124,7 +134,9 @@ begin
 				state <= WRITING1;
 				address1 <= Address1;
 				write_data1 <= Write_data1;
+				write_data2 <= Write_data2;
 				delay_count <= delay_count + 1;
+				memwritethrough1 <= 1;
 			end
 
 			// for these cases, there was no memory op for the first instr, only the second instr
@@ -137,18 +149,22 @@ begin
 				state <= READING2;
 				write_data2 <= Write_data2;
 				delay_count <= delay_count + 1;
+				readmiss2 <= 1;
+				memwritethrough2 <= 1;
 			end
 			// only second readmiss
 			else if((~ReadMiss1 && ~MemWriteThrough1) && ReadMiss2)
 			begin
 				state <= READING2;
 				delay_count <= delay_count + 1;
+				readmiss2 <= 1;
 			end
 			// only second write
 			else if((~ReadMiss1 && ~MemWriteThrough1) && MemWriteThrough2)
 			begin
 				state <= WRITING2;
 				delay_count <= delay_count + 1;
+				memwritethrough2 <= 1;
 			end
 		end
 	READING1:begin
@@ -208,7 +224,7 @@ begin
 		end
 	READING2:begin
 			// lw miss
-			if(ReadMiss2)
+			if(readmiss2)
 			begin
 				address2 <= Address2;
 				second_read_req <= 1;
@@ -221,7 +237,7 @@ begin
 			else if(delay_count == 8'h12) // when count reads 18, 19 cycles have passed, read now so ready by 20th
 			begin
 				// read the whole block
-				read_address1 = address1 & 32'hfffffff0; //change block offset to 0 so can grab correct block
+				read_address2 = address2 & 32'hfffffff0; //change block offset to 0 so can grab correct block
 				
 				// iterate through the block and put on read bus
 				for(i = 0; i < BLOCK_SIZE; i = i + 1)
@@ -286,7 +302,7 @@ begin
 		end
 	WRITING2:begin
 			// sw miss (need to read block from cache and write word to memory simultaneously)
-			if(ReadMiss2 && MemWriteThrough2)
+			if(readmiss2 && memwritethrough2)
 			begin
 				sw_miss2 <= 1;
 				address2 <= Address2;
@@ -294,7 +310,7 @@ begin
 				write_data2 <= Write_data2;
 			end
 			// sw write through (sw hit)
-			else if(MemWriteThrough2)
+			else if(memwritethrough2)
 			begin
 				second_write_req <= 1;
 				address2 <= Address2;
@@ -307,7 +323,7 @@ begin
 			else if(delay_count == 8'h12) // when count reads 18, 19 cycles have passed, write now so ready by 20th
 			begin
 				// write one word
-				memory[address1[31:2]] <= write_data1;
+				memory[address2[31:2]] <= write_data2;
 				delay_count <= delay_count + 1;
 			end
 			else if(delay_count == 8'h13) // 20 cycles past
@@ -346,7 +362,8 @@ begin
 					memory[address2[31:2]] <= write_data2;
 					state <= WRITE_READY2;
 				end
-				
+				readmiss1 <= 0;
+				memwritethrough1 <= 0;
 			end
 	WRITE_READY1:	begin
 				if(second_read_req)
@@ -377,14 +394,18 @@ begin
 					memory[address2[31:2]] <= write_data2;
 					state <= WRITE_READY2;
 				end
+				memwritethrough1 <= 0;
 			end
 	READ_READY2:	begin
 				second_read_req <= 0;
 				state <= IDLE;
+				readmiss2 <= 0;
+				memwritethrough2 <= 0;
 			end
 	WRITE_READY2:	begin
 				second_write_req <= 0;
 				state <= IDLE;
+				memwritethrough2 <= 0;
 			end
 	endcase
 end

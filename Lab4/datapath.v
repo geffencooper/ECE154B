@@ -7,7 +7,7 @@ module datapath (input CLK, RESET);
 	wire ireadmiss1, ireadready1;
 	wire [31:0] iaddy1;
 	wire [4095:0] idata1;
-	wire predictionF1, convergeenable;
+	wire predictionF1, convergeenable, oddalign;
 	wire [1:0] branchstate1;
 
 	wire [31:0] InstrF2, PCPlus8F2, PCBranchD2, PCInter2, PCJump2, PCprime2, PCF2, InstrD2, PCPlus8D2;
@@ -122,7 +122,7 @@ module datapath (input CLK, RESET);
 	mux2 convergemux( .d0(PCprime1), .d1(PCprime2), .s(convergeenable), .y(PCconverge));
 
 	// gets correct PC from each path's prediction
-	pcaligner aligner(PCF, PCF1, PCF2, RESET);
+	pcaligner aligner(PCF, PCF1, PCF2, RESET, oddalign);
 
         // pc register and instruction memory
 	register #(32) PCreg1( .D(PCconverge), .Q(PCF), .En(StallF1), .Clk(CLK), .Clr(RESET));
@@ -134,14 +134,14 @@ module datapath (input CLK, RESET);
 			   .instr1(InstrF1), .address1(iaddy1), .readmiss(ireadmiss1),
 			   .addy2(PCF2), .instr2(InstrF2));
 
-	inst_memory #(14) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
+	inst_memory #(27) imem( .Address(iaddy1), .Read_data(idata1), .ReadReady(ireadready1), .ReadMiss(ireadmiss1), 
 				.abort(abort), .Clk(CLK), .Rst(RESET));
 
 
 	adder plus8( .a(PCF1), .b(32'b1000), .y(PCPlus8F1));
 
         // flush fetch stage when have a jump instruction or we incorrectly guessed the branch result (prediction and ground truth should both be 0 or 1)
-	assign FlushD1 = jumpD1 || jumpD2 || (PCSrcD1^predictionD1) || lwstalladjacent || branchstalladjacent;
+	assign FlushD1 = jumpD1 || jumpD2 || (PCSrcD1^predictionD1) || lwstalladjacent || branchstalladjacent || oddalign;
 
 	// Fetch-Decode pipeline register, clear on a flush or reset
 	FDReg fdreg1( .InstrF(InstrF1), .InstrD(InstrD1), .PCPlus4F(PCPlus8F1), .PCPlus4D(PCPlus8D1), .PCF(PCF1), .PCD(PCD1), 
@@ -196,10 +196,10 @@ module datapath (input CLK, RESET);
 	
 	// handle branch target address
 	shftr branchshift1( .a(SEimmD1), .y(SEimmshftD1));
-	adder btadder1( .a(SEimmshftD1), .b(PCPlus8D1), .y(PCBranchD1));
+	adder btadder1( .a(SEimmshftD1), .b(PCPlus8D1 - 32'h4), .y(PCBranchD1));
 
 	shftr branchshift2( .a(SEimmD2), .y(SEimmshftD2));
-	adder btadder2( .a(SEimmshftD2), .b(PCPlus8D1 + 32'h4), .y(PCBranchD2));
+	adder btadder2( .a(SEimmshftD2), .b(PCPlus8D1), .y(PCBranchD2));
 	
 	// muxes for branch conditions to get most up to date registers
 	mux3 branchfwda1( .d0(RD1D1), .d1(ExecuteOutM1), .d2(ExecuteOutM2), .s(ForwardAD1), .y(branch_checkA1));
@@ -398,25 +398,29 @@ module zeropad(input [15:0] a, output [31:0] y);
 endmodule 
 
 // PC ALIGNER
-module pcaligner(input [31:0] PCin, output reg [31:0] PCout1, output reg [31:0] PCout2, input rst);
+module pcaligner(input [31:0] PCin, output reg [31:0] PCout1, output reg [31:0] PCout2, input rst, output reg oddalign);
 	always @(posedge rst)
 	begin
 		 PCout1 <= 32'b0;
 		 PCout2 <= 32'b0;
+		 oddalign <= 0;
 	end
 	
 	always @(PCin)
 	begin
+		oddalign <= 0;
 		// next pc is odd, set top to nop, set bottom to odd
 		if(PCin[2] == 1)
 		begin
-			PCout1 <= 32'b0;
+			PCout1 <= PCin - 32'h4;
 			PCout2 <= PCin;
+			oddalign <= 1;
 		end
 		else // normal case, PC + 8, top is even, bottom is odd part
 		begin
 			PCout1 <= PCin;
 			PCout2 <= PCin + 32'h4;
+			
 		end
 	end
 endmodule

@@ -23,6 +23,8 @@ reg [2:0] state;
 	wire [5:0] set1,set2;
 	wire [1:0] blk_offset1,blk_offset2;
 
+	reg memwrite2r;
+
 	wire hit_l;
 	wire hit_2;
 
@@ -126,6 +128,7 @@ reg [2:0] state;
 		address2 <= 32'b0;
 		write_word1 <= 32'b0;
 		write_word2 <= 32'b0;
+		memwrite2r <= 0;
 		for (i=0;i<ROWS;i=i+1)
 		begin
 			way1[i] <= 151'b0;
@@ -177,14 +180,15 @@ reg [2:0] state;
 						lru[set1] <=0;
 					end
 				end
-				else if (memwrite1 && hit1 && ~readready1) //write hit: tell memory to start writing the given value to the given address
+				else if (memwrite1 && hit_1 && ~readready1) //write hit: tell memory to start writing the given value to the given address
 				begin			  //also changes to WRITEhit state
 					addymem1 <= address1;
 					memwritethru1 <= 1;  //write control signal to memory
 					readmiss1 <=0;
+					memwrite2r <= memwrite2;
 					state <= WRITEhit;
 				end
-				else if (memwrite1 && ~hit1) //write miss: tell memory to start writing new word, as well as bring in new block to cache
+				else if (memwrite1 && ~hit_1) //write miss: tell memory to start writing new word, as well as bring in new block to cache
 				begin			   //also changes to WRITEmiss state
 					addymem1 <= address1;
 					memwritethru1 <= 1;
@@ -225,14 +229,14 @@ reg [2:0] state;
 						lru[set2] <=0;
 					end
 				end
-				else if (memwrite2 && hit2 && ~readready2) //write hit: tell memory to start writing the given value to the given address
+				else if (memwrite2 && hit_2 && ~readready2) //write hit: tell memory to start writing the given value to the given address
 				begin			  //also changes to WRITEhit state
 					addymem2 <= address2;
 					memwritethru2 <= 1;  //write control signal to memory
 					readmiss2 <=0;
 					state <= WRITEhit2;
 				end
-				else if (memwrite2 && ~hit2) //write miss: tell memory to start writing new word, as well as bring in new block to cache
+				else if (memwrite2 && ~hit_2) //write miss: tell memory to start writing new word, as well as bring in new block to cache
 				begin			   //also changes to WRITEmiss state
 					addymem2 <= address2;
 					memwritethru2 <= 1;
@@ -494,6 +498,10 @@ reg [2:0] state;
 		WRITEhit: begin
 			//write the new data into the block just brough in from mem
 			addymem1 = address1;
+			if (memwrite2r == 1)
+			begin
+				memwritethru2 = 1;
+			end
 			if(hit1 ==1) //if hit1 was 1, update way1
 			begin
 				case(blk_offset1) //make sure the word is put in correct spot in the block
@@ -548,37 +556,38 @@ reg [2:0] state;
 				memwritethru2 <= 1;
 				readmiss2 <=1;
 			end
-			else if (memwrite2 && hit_2 && ~readready2) 
+			else if (memwrite2r && hit_2 && ~readready2) 
 				begin			  
-					addymem2 <= address2;
-					memwritethru2 <= 1;  //write control signal to memory
-					readmiss2 <=0;
+					addymem2 = address2;
+					memwritethru2 = 1;  //write control signal to memory
+					readmiss2 =0;
 					//write the new data into the block just brough in from mem
 					if(hit1_2 ==1) //if hit1 was 1, update way1
 					begin
-						case(blk_offset2) //make sure the word is put in correct spot in the block
-		        				2'b00: way1[set2][31:0] = write_word2;
-							2'b01: way1[set2][63:32] = write_word2;
-		        				2'b10: way1[set2][95:64] = write_word2;
-		        				2'b11: way1[set2][127:96] = write_word2;
+						case(address2[3:2]) //make sure the word is put in correct spot in the block
+		        				2'b00: way1[address2[9:4]][31:0] = write_word2;
+							2'b01: way1[address2[9:4]][63:32] = write_word2;
+		        				2'b10: way1[address2[9:4]][95:64] = write_word2;
+		        				2'b11: way1[address2[9:4]][127:96] = write_word2;
 						endcase
 						//way1[set][149:128] = tag;
 						//way1[set][150] = 1;  //make sure data valid
-						lru[set2] = 1; //way2 now lru
+						lru[address2[9:4]] = 1; //way2 now lru
 					end
 					else if(hit2_2 ==1)  //if hit2, then replace word in way 2
 					begin
-						case(blk_offset2)//make sure the word is put in correct spot in the block
-		        				2'b00: way2[set2][31:0] = write_word2;
-							2'b01: way2[set2][63:32] = write_word2;
-		        				2'b10: way2[set2][95:64] = write_word2;
-		        				2'b11: way2[set2][127:96] = write_word2;
+						case(address2[3:2])//make sure the word is put in correct spot in the block
+		        				2'b00: way2[address2[9:4]][31:0] = write_word2;
+							2'b01: way2[address2[9:4]][63:32] = write_word2;
+		        				2'b10: way2[address2[9:4]][95:64] = write_word2;
+		        				2'b11: way2[address2[9:4]][127:96] = write_word2;
 						endcase
 						//way2[set][149:128] = tag;
 						//way2[set][150] = 1;  //make sure it knows data alid
-						lru[set2] = 0; //way 1 now lru
+						lru[address2[9:4]] = 0; //way 1 now lru
 					end
 					memwritethru2 = 0;  //disbale memwritethru so the memory doesnt write again
+					memwrite2r = 0;
 					state = INIT;  //go back to INIT
 
 				end

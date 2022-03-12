@@ -57,10 +57,11 @@ module hazard
 		store_inprog <= 0;
 		read_inprog <=0;
 		iread_inprog <= 0;
+		
 	end
 	
 	// we only stall on the posedge because these signals stay high until the request is ready
-	always @(posedge MemWriteE1, posedge MemtoRegE1, posedge MemWriteE2, posedge MemtoRegE2)//, posedge MemWriteD, posedge MemtoRegD) 
+	always @(posedge MemWriteE1, posedge MemtoRegE1, posedge MemWriteE2, posedge MemtoRegE2, posedge clk)//, posedge MemWriteD, posedge MemtoRegD) 
 	begin
 		// if a sw is already in progress (WRITING stage), then stall until it is done
 		if(store_inprog || read_inprog)
